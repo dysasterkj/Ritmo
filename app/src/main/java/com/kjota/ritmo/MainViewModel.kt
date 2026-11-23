@@ -53,6 +53,17 @@ data class SearchState(
 
 data class Shelf(val title: String, val tracks: List<Track>)
 
+private val shelfQueries = listOf(
+    "Éxitos del momento" to "éxitos del momento música",
+    "Música chilena" to "música chilena popular",
+    "Reguetón" to "reguetón nuevo",
+    "Pop en español" to "pop en español hits",
+    "Rock clásico" to "rock clásico en español e inglés",
+    "Baladas románticas" to "baladas románticas",
+    "Lo-fi para concentrarte" to "lo-fi beats relax",
+    "Cumbia y salsa" to "cumbia salsa clásicos",
+)
+
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private var controller: MediaController? = null
@@ -277,16 +288,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _search.value = SearchState()
     }
 
-    private val shelfQueries = listOf(
-        "Éxitos del momento" to "éxitos del momento música",
-        "Música chilena" to "música chilena popular",
-        "Reguetón" to "reguetón nuevo",
-        "Pop en español" to "pop en español hits",
-        "Rock clásico" to "rock clásico en español e inglés",
-        "Baladas románticas" to "baladas románticas",
-        "Lo-fi para concentrarte" to "lo-fi beats relax",
-        "Cumbia y salsa" to "cumbia salsa clásicos",
-    )
 
     fun loadShelves(force: Boolean = false) {
         if (_shelvesLoading.value) return
