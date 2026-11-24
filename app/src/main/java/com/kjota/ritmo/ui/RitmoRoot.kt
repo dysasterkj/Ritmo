@@ -199,7 +199,10 @@ fun RitmoRoot(vm: MainViewModel) {
                     .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (now.track != null) MiniPlayer(vm) { playerOpen = true }
+                if (now.track != null) MiniPlayer(vm) {
+                    // Si el estado quedó "abierto" pero el panel está abajo, hay que volver a subirlo igual.
+                    if (playerOpen) animateTo(0f) else playerOpen = true
+                }
                 NavBar(tab) { tab = it; collection = null }
             }
 
@@ -255,6 +258,8 @@ fun RitmoRoot(vm: MainViewModel) {
                                 onVerticalDrag = { change, dy ->
                                     tracker.addPosition(change.uptimeMillis, change.position)
                                     closed = (closed + dy / hPx).coerceIn(0f, 1f)
+                                    // Al llegar abajo el panel se quita de la composición y se perdería el "soltar".
+                                    if (closed >= 0.999f) playerOpen = false
                                 },
                                 onDragEnd = { release(tracker.calculateVelocity().y) },
                                 onDragCancel = { release(0f) },
