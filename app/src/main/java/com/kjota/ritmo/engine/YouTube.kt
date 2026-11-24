@@ -20,11 +20,11 @@ object YouTube {
     private class Cached(val url: String, val at: Long)
     private val urlCache = ConcurrentHashMap<String, Cached>()
 
-    suspend fun search(query: String, count: Int = 25): List<Track> = withContext(Dispatchers.IO) {
+    suspend fun search(query: String, count: Int = 25, maxSec: Int = 25 * 60): List<Track> = withContext(Dispatchers.IO) {
         Engine.awaitReady()
         val req = YoutubeDLRequest("ytsearch$count:$query")
         flatOptions(req)
-        parse(YoutubeDL.getInstance().execute(req, null, null).out)
+        parse(YoutubeDL.getInstance().execute(req, null, null).out, maxSec)
     }
 
     /** Canciones parecidas (el "mix" automático de YouTube). */
@@ -44,14 +44,14 @@ object YouTube {
         req.addOption("--socket-timeout", 20)
     }
 
-    private fun parse(json: String): List<Track> {
+    private fun parse(json: String, maxSec: Int = 25 * 60): List<Track> {
         val start = json.indexOf('{')
         if (start < 0) return emptyList()
         val entries = JSONObject(json.substring(start)).optJSONArray("entries") ?: return emptyList()
         val out = ArrayList<Track>()
         val seen = HashSet<String>()
         for (i in 0 until entries.length()) {
-            val t = entryToTrack(entries.optJSONObject(i) ?: continue) ?: continue
+            val t = entryToTrack(entries.optJSONObject(i) ?: continue, maxSec) ?: continue
             if (seen.add(t.id)) out.add(t)
         }
         return out
@@ -61,13 +61,13 @@ object YouTube {
         optString(key).takeIf { it.isNotBlank() && it != "null" }
 
     /** Convierte una entrada de yt-dlp en canción. Devuelve null si no es un video de YouTube utilizable. */
-    fun entryToTrack(e: JSONObject): Track? {
+    fun entryToTrack(e: JSONObject, maxSec: Int = 25 * 60): Track? {
         val id = e.optString("id")
         if (id.length != 11) return null
         val dur = e.optDouble("duration", 0.0).toInt()
         val live = e.optString("live_status")
         if (live == "is_live" || live == "is_upcoming") return null
-        if (dur > 25 * 60) return null // evita mixes larguísimos y transmisiones
+        if (dur > maxSec) return null // evita mixes larguísimos y transmisiones
         val artist = (e.str("channel") ?: e.str("uploader") ?: "YouTube").removeSuffix(" - Topic")
         return Track(id, e.optString("title", "Sin título"), artist, dur)
     }
@@ -108,6 +108,35 @@ object YouTube {
             ?: throw IllegalStateException("No se encontró el audio")
         urlCache[id] = Cached(url, System.currentTimeMillis())
         return url
+    }
+
+    private class CachedVideo(val video: String, val audio: String?, val at: Long)
+    private val videoCache = ConcurrentHashMap<String, CachedVideo>()
+
+    /**
+     * Direcciones directas del VIDEO: (video, audio). Con calidades altas YouTube separa imagen y sonido,
+     * así que devuelve dos direcciones y el reproductor las une. Prefiere H.264 + AAC (lo entienden todos los teléfonos y TV).
+     */
+    suspend fun videoUrls(id: String, maxHeight: Int): Pair<String, String?> = withContext(Dispatchers.IO) {
+        val key = "$id@$maxHeight"
+        val c = videoCache[key]
+        if (c != null && System.currentTimeMillis() - c.at < 2L * 60 * 60 * 1000) return@withContext c.video to c.audio
+        Engine.awaitReady()
+        val h = maxHeight
+        val req = YoutubeDLRequest("$WATCH$id")
+        req.addOption(
+            "-f",
+            "bv*[height<=$h][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=$h][ext=mp4]/bv*[height<=$h]+ba/b[height<=$h]/b",
+        )
+        req.addOption("-g")
+        req.addOption("--no-playlist")
+        req.addOption("--no-warnings")
+        req.addOption("--socket-timeout", 20)
+        val out = YoutubeDL.getInstance().execute(req, null, null).out
+        val urls = out.lineSequence().map { it.trim() }.filter { it.startsWith("http") }.toList()
+        if (urls.isEmpty()) throw IllegalStateException("No se encontró el video")
+        videoCache[key] = CachedVideo(urls[0], urls.getOrNull(1), System.currentTimeMillis())
+        urls[0] to urls.getOrNull(1)
     }
 
     /** Resuelve la siguiente canción con anticipación para que el cambio sea instantáneo. */

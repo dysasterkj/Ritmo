@@ -40,6 +40,9 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -72,13 +75,14 @@ import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Track
 
 @Composable
-fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track) -> Unit, onOpenEq: () -> Unit) {
+fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track) -> Unit, onOpenEq: () -> Unit, onWatchVideo: () -> Unit, onFullLyrics: () -> Unit) {
     val now by vm.now.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val prog by vm.downloading.collectAsStateWithLifecycle()
     val t = now.track
     var drag by remember { mutableStateOf<Float?>(null) }
     var showLyrics by remember { mutableStateOf(false) }
+    if (showLyrics) KeepScreenOn()
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val mixState by vm.mixBus.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -147,12 +151,17 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
 
             if (showLyrics) {
                 Spacer(Modifier.height(6.dp))
-                LyricsPanel(
-                    vm = vm,
-                    track = t,
-                    positionMs = now.positionMs,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    LyricsPanel(
+                        vm = vm,
+                        track = t,
+                        positionMs = now.positionMs,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    IconButton(onClick = onFullLyrics, modifier = Modifier.align(Alignment.TopEnd)) {
+                        Icon(Icons.Rounded.Fullscreen, "Letra a pantalla completa", tint = Color.White)
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
             } else {
                 Spacer(Modifier.weight(0.4f))
@@ -313,7 +322,7 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 GlassPill(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                     label = when {
                         downloaded -> "Descargada"
                         percent != null -> "Descargando $percent%"
@@ -327,6 +336,12 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                             null, tint = if (downloaded) Pal.Green else Color.White,
                         )
                     },
+                )
+                GlassPill(
+                    modifier = Modifier.weight(1f),
+                    label = "Ver video",
+                    onClick = onWatchVideo,
+                    icon = { Icon(Icons.Rounded.Videocam, null, tint = Color.White) },
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -358,7 +373,8 @@ private fun GlassPill(
 
 /** Letra de la canción. Con tiempos: resalta la línea actual y al tocar una línea salta a ese momento. */
 @Composable
-private fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modifier: Modifier) {
+private fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modifier: Modifier, big: Boolean = false) {
+    val k = if (big) 1.4f else 1f
     val ly by vm.lyrics.collectAsStateWithLifecycle()
     LaunchedEffect(track.id) { vm.loadLyrics(track) }
 
@@ -394,7 +410,7 @@ private fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modif
                         val isActive = i == active
                         Text(
                             line.text.ifBlank { "♪" },
-                            fontSize = if (isActive) 24.sp else 20.sp,
+                            fontSize = (if (isActive) 24f * k else 20f * k).sp,
                             fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold,
                             color = if (isActive) Color.White else Color.White.copy(alpha = 0.42f),
                             modifier = Modifier
@@ -412,12 +428,77 @@ private fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modif
                 item {
                     Text(
                         data.plain.orEmpty(),
-                        fontSize = 18.sp,
+                        fontSize = (18f * k).sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
-                        lineHeight = 28.sp,
+                        lineHeight = (28f * k).sp,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Letra a pantalla completa: sin barras, la pantalla no se apaga y se puede pausar desde aquí. */
+@Composable
+fun LyricsFullScreen(vm: MainViewModel, onClose: () -> Unit) {
+    val now by vm.now.collectAsStateWithLifecycle()
+    val t = now.track
+    KeepScreenOn()
+    SystemUi(hideBars = true, landscape = false)
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Pal.Ink)
+            .pointerInput(Unit) { detectTapGestures { } },
+    ) {
+        if (t != null) {
+            AsyncImage(
+                model = t.thumbHq,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { scaleX = 1.6f; scaleY = 1.6f }
+                    .blur(70.dp)
+                    .alpha(0.5f),
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0x55000000), Color(0xE607090C)))
+                )
+            )
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Rounded.FullscreenExit, "Salir de pantalla completa", tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                        Text(t.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(t.artist, color = Pal.Dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = { vm.previous() }) {
+                        Icon(Icons.Rounded.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    IconButton(onClick = { vm.togglePlay() }) {
+                        Icon(
+                            if (now.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            if (now.isPlaying) "Pausa" else "Reproducir", tint = Color.White, modifier = Modifier.size(34.dp),
+                        )
+                    }
+                    IconButton(onClick = { vm.next() }) {
+                        Icon(Icons.Rounded.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                LyricsPanel(vm = vm, track = t, positionMs = now.positionMs, modifier = Modifier.weight(1f).fillMaxWidth(), big = true)
             }
         }
     }

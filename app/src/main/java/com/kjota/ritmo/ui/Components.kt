@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -131,7 +132,7 @@ fun TrackRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .tvClickable(RoundedCornerShape(16.dp), onClick)
             .padding(vertical = 6.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -189,6 +190,7 @@ fun TrackRow(
                 } else if (percent == null) {
                     MenuItem("Descargar", Icons.Rounded.Download) { menu = false; vm.download(track) }
                 }
+                MenuItem("Ver video", Icons.Rounded.Videocam) { menu = false; vm.watchVideo(track) }
                 MenuItem("Agregar a playlist", Icons.Rounded.PlaylistAdd) { menu = false; onPickPlaylist(track) }
                 MenuItem("Reproducir a continuación", Icons.Rounded.QueueMusic) { menu = false; vm.playNext(track) }
                 MenuItem("Agregar a la cola", Icons.Rounded.Add) { menu = false; vm.addToQueue(track) }

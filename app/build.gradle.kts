@@ -66,6 +66,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.0")
     implementation("androidx.media3:media3-session:1.5.0")
     implementation("androidx.media3:media3-datasource:1.5.0")
+    implementation("androidx.media3:media3-ui:1.5.0")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

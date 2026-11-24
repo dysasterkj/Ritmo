@@ -17,6 +17,16 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.focusable
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.runtime.mutableFloatStateOf
@@ -98,7 +108,6 @@ fun RitmoRoot(vm: MainViewModel) {
     var collection by rememberSaveable { mutableStateOf<String?>(null) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var pick by remember { mutableStateOf<Track?>(null) }
-    var showSettings by remember { mutableStateOf(false) }
     var importOpen by remember { mutableStateOf(false) }
     val pending by vm.pendingImport.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
@@ -114,10 +123,16 @@ fun RitmoRoot(vm: MainViewModel) {
     }
 
     LaunchedEffect(Unit) {
+        vm.openVideo.collect { videoOpen = true }
+    }
+
+    LaunchedEffect(Unit) {
         vm.messages.collect { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show() }
     }
 
     var eqOpen by rememberSaveable { mutableStateOf(false) }
+    var videoOpen by rememberSaveable { mutableStateOf(false) }
+    var lyricsFull by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // 0 = reproductor abierto, 1 = minimizado (queda solo el mini reproductor).
@@ -134,8 +149,9 @@ fun RitmoRoot(vm: MainViewModel) {
     }
     LaunchedEffect(playerOpen) { animateTo(if (playerOpen) 0f else 1f) }
 
-    BackHandler(enabled = eqOpen || playerOpen || collection != null || tab != 0) {
+    BackHandler(enabled = lyricsFull || eqOpen || playerOpen || collection != null || tab != 0) {
         when {
+            lyricsFull -> lyricsFull = false
             eqOpen -> eqOpen = false
             playerOpen -> playerOpen = false
             collection != null -> collection = null
@@ -146,6 +162,13 @@ fun RitmoRoot(vm: MainViewModel) {
     AuroraBackground {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val hPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxHeight.toPx() }
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .widthIn(max = 640.dp),
+            ) {
             val open = collection
             when {
                 open != null -> CollectionScreen(
@@ -153,9 +176,10 @@ fun RitmoRoot(vm: MainViewModel) {
                     onBack = { collection = null },
                     onPickPlaylist = { pick = it },
                 )
-                tab == 0 -> HomeScreen(vm, onOpenCollection = { collection = it }, onOpenSettings = { showSettings = true })
+                tab == 0 -> HomeScreen(vm, onOpenCollection = { collection = it }, onOpenSettings = { tab = 3; collection = null })
                 tab == 1 -> SearchScreen(vm, now.track?.id, onPickPlaylist = { pick = it })
-                else -> LibraryScreen(vm, onOpen = { collection = it }, onImport = { importOpen = true })
+                tab == 2 -> LibraryScreen(vm, onOpen = { collection = it }, onImport = { importOpen = true })
+                else -> SettingsScreen(vm, onOpenEq = { eqOpen = true })
             }
 
             Column(
@@ -232,6 +256,8 @@ fun RitmoRoot(vm: MainViewModel) {
                         onClose = { playerOpen = false },
                         onPickPlaylist = { pick = it },
                         onOpenEq = { eqOpen = true },
+                        onWatchVideo = { videoOpen = true },
+                        onFullLyrics = { lyricsFull = true },
                     )
                 }
             }
@@ -243,11 +269,14 @@ fun RitmoRoot(vm: MainViewModel) {
             ) {
                 EqualizerScreen(vm, onClose = { eqOpen = false })
             }
+            }
+
+            if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
+            if (videoOpen) VideoScreen(vm, onClose = { videoOpen = false })
         }
     }
 
     pick?.let { PlaylistPicker(it, vm) { pick = null } }
-    if (showSettings) SettingsDialog(vm) { showSettings = false }
     if (importOpen) {
         ImportDialog(vm, initial = pending.orEmpty()) {
             importOpen = false
@@ -334,7 +363,7 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit) {
             .glassBar(RoundedCornerShape(34.dp)),
     ) {
         val pad = 5.dp
-        val tabW = (maxWidth - pad * 2) / 3
+        val tabW = (maxWidth - pad * 2) / 4
         val target = if (pressed >= 0) pressed else selected
         val pos by animateFloatAsState(
             target.toFloat(),
@@ -405,7 +434,7 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit) {
                 .fillMaxSize()
                 .padding(horizontal = pad)
                 .pointerInput(Unit) {
-                    fun idx(x: Float) = (x / (size.width / 3f)).toInt().coerceIn(0, 2)
+                    fun idx(x: Float) = (x / (size.width / 4f)).toInt().coerceIn(0, 3)
                     detectTapGestures(
                         onPress = { o ->
                             pressed = idx(o.x)
@@ -420,17 +449,28 @@ private fun NavBar(selected: Int, onSelect: (Int) -> Unit) {
                     )
                 },
         ) {
-            NavItem("Inicio", Icons.Rounded.Home, selected == 0, Modifier.weight(1f))
-            NavItem("Buscar", Icons.Rounded.Search, selected == 1, Modifier.weight(1f))
-            NavItem("Biblioteca", Icons.Rounded.LibraryMusic, selected == 2, Modifier.weight(1f))
+            NavItem("Inicio", Icons.Rounded.Home, selected == 0, Modifier.weight(1f)) { onSelect(0); ripples++ }
+            NavItem("Buscar", Icons.Rounded.Search, selected == 1, Modifier.weight(1f)) { onSelect(1); ripples++ }
+            NavItem("Biblioteca", Icons.Rounded.LibraryMusic, selected == 2, Modifier.weight(1f)) { onSelect(2); ripples++ }
+            NavItem("Ajustes", Icons.Rounded.Settings, selected == 3, Modifier.weight(1f)) { onSelect(3); ripples++ }
         }
     }
 }
 
 @Composable
-private fun NavItem(label: String, icon: ImageVector, active: Boolean, modifier: Modifier) {
+private fun NavItem(label: String, icon: ImageVector, active: Boolean, modifier: Modifier, onSelect: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
     Column(
-        modifier.fillMaxSize(),
+        modifier
+            .fillMaxSize()
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .onKeyEvent { e ->
+                if (e.type == KeyEventType.KeyUp && (e.key == Key.DirectionCenter || e.key == Key.Enter)) {
+                    onSelect(); true
+                } else false
+            }
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(29.dp)) else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -441,72 +481,4 @@ private fun NavItem(label: String, icon: ImageVector, active: Boolean, modifier:
             color = if (active) Pal.Green else Pal.Dim,
         )
     }
-}
-
-@Composable
-private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
-    val version by Engine.version.collectAsStateWithLifecycle()
-    val lib by vm.lib.collectAsStateWithLifecycle()
-    val mixSec by vm.mixSec.collectAsStateWithLifecycle()
-    val curve by vm.mixCurve.collectAsStateWithLifecycle()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xF2151A22),
-        title = { Text("Ajustes", color = Color.White, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Motor de YouTube (yt-dlp): ${version ?: "iniciando…"}", color = Color.White)
-                Text(
-                    "Si las búsquedas o la reproducción fallan, actualiza el motor: YouTube cambia seguido.",
-                    color = Pal.Dim, fontSize = 13.sp,
-                )
-                TextButton(onClick = { vm.updateEngine() }) { Text("Actualizar motor ahora", color = Pal.Green) }
-                Text("Mix DJ — duración de la mezcla", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(5, 8, 12, 16).forEach { sec ->
-                        val on = mixSec == sec
-                        Text(
-                            "${sec}s",
-                            color = if (on) Color(0xFF00210B) else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (on) Pal.Green else Color.White.copy(alpha = 0.14f))
-                                .clickable { vm.setMixSeconds(sec) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-                Text("Curva de la mezcla", color = Color.White, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Suave", "Corte rápido", "Lineal").forEachIndexed { i, name ->
-                        val on = curve == i
-                        Text(
-                            name,
-                            color = if (on) Color(0xFF00210B) else Color.White,
-                            fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (on) Pal.Green else Color.White.copy(alpha = 0.14f))
-                                .clickable { vm.setMixCurve(i) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        )
-                    }
-                }
-                Text(
-                    "Se activa con el botón “Mix DJ” del reproductor. Con 5 s la mezcla es corta; con 16 s, larga y suave.",
-                    color = Pal.Dim, fontSize = 12.sp,
-                )
-                Text(
-                    "Descargas: ${lib.downloads.size} canciones · ${formatSize(Library.usedBytes())} en el teléfono",
-                    color = Color.White, fontSize = 14.sp,
-                )
-                Text(
-                    "Sin anuncios, sin cuentas y sin seguimiento. Todo se guarda solo en este teléfono.",
-                    color = Pal.Dim, fontSize = 13.sp,
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar", color = Color.White) } },
-    )
 }

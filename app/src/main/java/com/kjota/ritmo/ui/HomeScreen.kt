@@ -103,7 +103,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .then(if (sel) Modifier.background(Pal.Green) else Modifier.glass(RoundedCornerShape(50), strength = 0.9f))
-                            .clickable { vm.setMood(i) }
+                            .tvClickable(RoundedCornerShape(50)) { vm.setMood(i) }
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
@@ -220,7 +220,7 @@ private fun QuickTile(
     Row(
         modifier = modifier
             .glass(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
+            .tvClickable(RoundedCornerShape(14.dp), onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading()
@@ -245,7 +245,7 @@ private fun ShelfRow(title: String, tracks: List<Track>, onPlay: (Int) -> Unit) 
                 Column(
                     Modifier
                         .width(150.dp)
-                        .clickable { onPlay(i) },
+                        .tvClickable(RoundedCornerShape(18.dp)) { onPlay(i) },
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Cover(t.thumb, Modifier.size(150.dp), 18)

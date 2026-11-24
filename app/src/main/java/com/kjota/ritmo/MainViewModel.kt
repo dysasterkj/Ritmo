@@ -196,6 +196,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _mood = MutableStateFlow(0)
     val mood: StateFlow<Int> = _mood.asStateFlow()
 
+    private val _videoHeight = MutableStateFlow(Prefs.getLong(app, "video_h", 1080L).toInt())
+    val videoHeight: StateFlow<Int> = _videoHeight.asStateFlow()
+
+    private val _openVideo = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openVideo: SharedFlow<Unit> = _openVideo.asSharedFlow()
+
     private val _import = MutableStateFlow(ImportState())
     val importState: StateFlow<ImportState> = _import.asStateFlow()
 
@@ -386,7 +392,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _search.value = SearchState(query = q, loading = true)
         searchJob = viewModelScope.launch {
             try {
-                val r = YouTube.search(q)
+                val r = YouTube.search(q, 25, maxSec = 4 * 3600)
                 _search.value = SearchState(
                     query = q, done = true, results = r,
                     error = if (r.isEmpty()) "No encontré resultados para “$q”" else null,
@@ -534,6 +540,33 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun setMixSeconds(sec: Int) {
         Prefs.putLong(app, "mix_sec", sec.toLong())
         _mixSec.value = sec
+    }
+
+    fun setVideoHeight(h: Int) {
+        Prefs.putLong(app, "video_h", h.toLong())
+        _videoHeight.value = h
+    }
+
+    // ------------------------------------------------------------------ Video
+
+    /** Pone el video en pantalla completa: el audio queda en pausa mientras se ve. */
+    fun watchVideo(t: Track) {
+        play(listOf(t), 0, radio = true)
+        controller?.pause()
+        _openVideo.tryEmit(Unit)
+    }
+
+    fun pauseAudio() { controller?.pause() }
+
+    fun prevTrack() { controller?.seekToPreviousMediaItem() }
+
+    /** Al cerrar el video, el audio sigue desde donde quedó el video (si es la misma canción). */
+    fun endVideo(trackId: String?, positionMs: Long, wasPlaying: Boolean) {
+        val c = controller ?: return
+        if (trackId != null && c.currentMediaItem?.mediaId == trackId) {
+            c.seekTo(positionMs.coerceAtLeast(0L))
+            if (wasPlaying) c.play()
+        }
     }
 
     fun setMixCurve(c: Int) {
