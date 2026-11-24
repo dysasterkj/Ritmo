@@ -107,6 +107,8 @@ fun RitmoRoot(vm: MainViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var collection by rememberSaveable { mutableStateOf<String?>(null) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
+    var videoOpen by rememberSaveable { mutableStateOf(false) }
+    var lyricsFull by rememberSaveable { mutableStateOf(false) }
     var pick by remember { mutableStateOf<Track?>(null) }
     var importOpen by remember { mutableStateOf(false) }
     val pending by vm.pendingImport.collectAsStateWithLifecycle()
@@ -131,8 +133,6 @@ fun RitmoRoot(vm: MainViewModel) {
     }
 
     var eqOpen by rememberSaveable { mutableStateOf(false) }
-    var videoOpen by rememberSaveable { mutableStateOf(false) }
-    var lyricsFull by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // 0 = reproductor abierto, 1 = minimizado (queda solo el mini reproductor).
