@@ -134,6 +134,7 @@ fun CarScreen(vm: MainViewModel) {
         }
 
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            val mh = this.maxHeight
             val wide = maxWidth >= 560.dp
             val dur = now.durationMs.coerceAtLeast(1L)
             val frac = drag ?: (now.positionMs.toFloat() / dur).coerceIn(0f, 1f)
@@ -146,7 +147,7 @@ fun CarScreen(vm: MainViewModel) {
                     Text(
                         t?.title ?: "Modo auto", color = Color.White, fontWeight = FontWeight.ExtraBold,
                         fontSize = if (wide) 24.sp else 19.sp, lineHeight = if (wide) 28.sp else 23.sp,
-                        maxLines = if (maxHeight < 420.dp) 1 else 2, overflow = TextOverflow.Ellipsis,
+                        maxLines = if (mh < 420.dp) 1 else 2, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         t?.artist ?: "Elige qué escuchar", color = Pal.Dim,
@@ -177,7 +178,7 @@ fun CarScreen(vm: MainViewModel) {
 
             @Composable
             fun Controls() {
-                val big = (maxHeight * 0.24f).coerceIn(64.dp, 100.dp)
+                val big = (mh * 0.24f).coerceIn(64.dp, 100.dp)
                 val side = big * 0.72f
                 Row(
                     Modifier.fillMaxWidth(),
@@ -238,7 +239,7 @@ fun CarScreen(vm: MainViewModel) {
             }
 
             if (wide) {
-                val cover = (maxHeight - 32.dp).coerceAtLeast(120.dp)
+                val cover = (mh - 32.dp).coerceAtLeast(120.dp)
                 Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                     Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
                         if (t != null) {
@@ -264,7 +265,7 @@ fun CarScreen(vm: MainViewModel) {
                     Spacer(Modifier.height(36.dp))
                     if (t != null) {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            val side = (maxHeight * 0.34f).coerceIn(80.dp, 220.dp)
+                            val side = (mh * 0.34f).coerceIn(80.dp, 220.dp)
                             Cover(t.thumbHq, Modifier.size(side).glass(RoundedCornerShape(20.dp), strength = 1.6f), 20)
                         }
                     }
