@@ -3,6 +3,7 @@ package com.kjota.ritmo
 import android.Manifest
 import android.graphics.Color
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -26,6 +27,20 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        handleShare(intent)
         setContent { RitmoTheme { RitmoRoot(vm) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShare(intent)
+    }
+
+    /** Desde Spotify, YouTube, etc. se puede "Compartir" una playlist directamente a Ritmo. */
+    private fun handleShare(i: Intent?) {
+        if (i?.action == Intent.ACTION_SEND && i.type?.startsWith("text/") == true) {
+            i.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }?.let { vm.setPendingImport(it) }
+        }
     }
 }

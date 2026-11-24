@@ -4,8 +4,8 @@ App Android (Kotlin + Jetpack Compose) de música en streaming para uso personal
 Catálogo = YouTube, a través de yt-dlp (youtubedl-android). Sin cuentas, sin anuncios, sin analítica.
 
 ## Estado
-Escrita **sin poder compilarse** (el entorno no tiene Android SDK ni Maven). La primera tarea es compilar con
-`./gradlew assembleDebug` (o con GitHub Actions) y corregir lo que falle.
+El entorno de Claude no tiene Android SDK ni Maven: el código se compila con GitHub Actions (push → workflow "Compilar APK" → Release).
+Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 
 ## Cómo funciona
 - Búsqueda / "radio": `engine/YouTube.kt` usa `ytsearch25:<texto>` y `watch?v=ID&list=RDID` con `--flat-playlist -J`.
@@ -15,6 +15,14 @@ Escrita **sin poder compilarse** (el entorno no tiene Android SDK ni Maven). La 
 - Descargas: `download/Downloads.kt` (cola + progreso) y `DownloadService.kt` (primer plano, una por una) → `filesDir/music/<id>.<ext>`.
 - Biblioteca (favoritas, descargas, recientes, playlists): `data/Library.kt`, JSON en `filesDir/library.json`.
 - UI: `ui/Glass.kt` (aurora + `Modifier.glass()` / `glassBar()`), pantallas en `ui/*Screen.kt`, `RitmoRoot.kt` (navegación y mini reproductor).
+- Letras: `engine/Lyrics.kt` consulta LRCLIB (`/api/search`), limpia el título de YouTube, elige por duración (±12 s) y prefiere letra con tiempos (LRC).
+  Caché en `cacheDir/lyrics`. Panel en `PlayerScreen.kt` (`LyricsPanel`): resalta la línea actual y tocar una línea salta a ese momento.
+- Mix DJ: en `PlaybackService` hay DOS ExoPlayer. Con "mix_on" (Prefs) activo y quedando ≤ `mix_sec` s, el principal salta a la siguiente
+  canción (volumen sube, curva seno) y el segundo (`tail`) sigue el final de la anterior (baja, coseno). `ticker` cada 80 ms durante la mezcla.
+  Un salto manual del usuario durante la mezcla la cancela (`expectTransition`).
+- Importar playlists: `engine/Importer.kt`. YouTube/YT Music directo; Spotify vía página embed (`__NEXT_DATA__` → `trackList`, máx. ~100);
+  Deezer vía api.deezer.com; SoundCloud/Bandcamp/otros vía yt-dlp `--flat-playlist`; texto "Artista - Canción". Lo que no es YouTube se busca
+  en YouTube (3 en paralelo, se elige la duración más parecida). También entra por "Compartir" (intent SEND en el manifest).
 - `MainViewModel` conecta la UI con el reproductor mediante `MediaController`.
 
 ## Reglas heredadas de Bajalo (no cambiar sin motivo)
@@ -24,4 +32,4 @@ Escrita **sin poder compilarse** (el entorno no tiene Android SDK ni Maven). La 
 - Si YouTube deja de responder: actualizar yt-dlp (Ajustes → "Actualizar motor ahora"; también se actualiza solo cada 24 h).
 
 ## Ideas pendientes
-Cola visible, temporizador de apagado, letras, ecualizador, importar playlists de YouTube por enlace, caché de portada de Inicio sin conexión.
+Cola visible, temporizador de apagado, ecualizador, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.

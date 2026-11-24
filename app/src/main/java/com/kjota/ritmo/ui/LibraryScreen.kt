@@ -22,7 +22,11 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,9 +50,10 @@ import com.kjota.ritmo.data.Library
 import com.kjota.ritmo.data.Track
 
 @Composable
-fun LibraryScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
+fun LibraryScreen(vm: MainViewModel, onOpen: (String) -> Unit, onImport: () -> Unit) {
     val lib by vm.lib.collectAsStateWithLifecycle()
     var creating by remember { mutableStateOf(false) }
+    var addMenu by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
 
     LazyColumn(
@@ -59,8 +64,24 @@ fun LibraryScreen(vm: MainViewModel, onOpen: (String) -> Unit) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ScreenTitle("Tu biblioteca", Modifier.weight(1f))
-                IconButton(onClick = { creating = true }) {
-                    Icon(Icons.Rounded.Add, "Nueva playlist", tint = Color.White)
+                Box {
+                    IconButton(onClick = { addMenu = true }) {
+                        Icon(Icons.Rounded.Add, "Agregar", tint = Color.White)
+                    }
+                    DropdownMenu(
+                        expanded = addMenu,
+                        onDismissRequest = { addMenu = false },
+                        modifier = Modifier.background(Color(0xF2151A22)),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Nueva playlist", color = Color.White) },
+                            onClick = { addMenu = false; creating = true },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Importar playlist", color = Color.White) },
+                            onClick = { addMenu = false; onImport() },
+                        )
+                    }
                 }
             }
         }

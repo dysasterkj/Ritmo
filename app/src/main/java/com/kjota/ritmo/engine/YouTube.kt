@@ -51,19 +51,45 @@ object YouTube {
         val out = ArrayList<Track>()
         val seen = HashSet<String>()
         for (i in 0 until entries.length()) {
-            val e = entries.optJSONObject(i) ?: continue
-            val id = e.optString("id")
-            if (id.length != 11 || !seen.add(id)) continue
-            val dur = e.optDouble("duration", 0.0).toInt()
-            val live = e.optString("live_status")
-            if (live == "is_live" || live == "is_upcoming") continue
-            if (dur > 25 * 60) continue // evita mixes larguísimos y transmisiones
-            val artist = (e.optString("channel").takeIf { it.isNotBlank() && it != "null" }
-                ?: e.optString("uploader").takeIf { it.isNotBlank() && it != "null" }
-                ?: "YouTube").removeSuffix(" - Topic")
-            out.add(Track(id, e.optString("title", "Sin título"), artist, dur))
+            val t = entryToTrack(entries.optJSONObject(i) ?: continue) ?: continue
+            if (seen.add(t.id)) out.add(t)
         }
         return out
+    }
+
+    private fun JSONObject.str(key: String): String? =
+        optString(key).takeIf { it.isNotBlank() && it != "null" }
+
+    /** Convierte una entrada de yt-dlp en canción. Devuelve null si no es un video de YouTube utilizable. */
+    fun entryToTrack(e: JSONObject): Track? {
+        val id = e.optString("id")
+        if (id.length != 11) return null
+        val dur = e.optDouble("duration", 0.0).toInt()
+        val live = e.optString("live_status")
+        if (live == "is_live" || live == "is_upcoming") return null
+        if (dur > 25 * 60) return null // evita mixes larguísimos y transmisiones
+        val artist = (e.str("channel") ?: e.str("uploader") ?: "YouTube").removeSuffix(" - Topic")
+        return Track(id, e.optString("title", "Sin título"), artist, dur)
+    }
+
+    /** Lista plana de cualquier enlace que yt-dlp entienda: (título de la lista, entradas crudas). */
+    suspend fun flatList(url: String, max: Int = 300): Pair<String, List<JSONObject>> = withContext(Dispatchers.IO) {
+        Engine.awaitReady()
+        val req = YoutubeDLRequest(url)
+        flatOptions(req)
+        req.addOption("--playlist-end", max)
+        val json = YoutubeDL.getInstance().execute(req, null, null).out
+        val start = json.indexOf('{')
+        if (start < 0) return@withContext "" to emptyList()
+        val root = JSONObject(json.substring(start))
+        val arr = root.optJSONArray("entries")
+        val list = ArrayList<JSONObject>()
+        if (arr != null) {
+            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { list.add(it) }
+        } else if (root.has("id")) {
+            list.add(root) // era un solo video
+        }
+        (root.str("title") ?: "") to list
     }
 
     /** Dirección directa del audio (bloqueante: se llama desde el hilo de carga del reproductor). */

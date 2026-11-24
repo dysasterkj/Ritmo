@@ -82,6 +82,14 @@ object Library {
         return id
     }
 
+    fun createPlaylistWith(name: String, tracks: List<Track>): String {
+        val id = UUID.randomUUID().toString()
+        update { s ->
+            s.copy(playlists = s.playlists + Playlist(id, name.trim().ifEmpty { "Playlist importada" }, tracks.distinctBy { it.id }))
+        }
+        return id
+    }
+
     fun addToPlaylist(pid: String, t: Track) = update { s ->
         s.copy(playlists = s.playlists.map { p ->
             if (p.id == pid && p.tracks.none { it.id == t.id }) p.copy(tracks = p.tracks + t) else p

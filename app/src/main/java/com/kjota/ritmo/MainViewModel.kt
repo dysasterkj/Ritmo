@@ -12,9 +12,13 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.kjota.ritmo.data.Library
+import com.kjota.ritmo.data.Prefs
 import com.kjota.ritmo.data.Track
 import com.kjota.ritmo.download.Downloads
 import com.kjota.ritmo.engine.Engine
+import com.kjota.ritmo.engine.Importer
+import com.kjota.ritmo.engine.Lyrics
+import com.kjota.ritmo.engine.LyricsData
 import com.kjota.ritmo.engine.YouTube
 import com.kjota.ritmo.player.PlaybackService
 import com.kjota.ritmo.player.toMediaItem
@@ -53,6 +57,11 @@ data class SearchState(
 
 data class Shelf(val title: String, val tracks: List<Track>)
 
+/** Letra de la canción [trackId]: cargando, o con datos (null = no se encontró). */
+data class LyricsUi(val trackId: String? = null, val loading: Boolean = false, val data: LyricsData? = null)
+
+data class ImportState(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val message: String = "")
+
 private val shelfQueries = listOf(
     "Éxitos del momento" to "éxitos del momento música",
     "Música chilena" to "música chilena popular",
@@ -85,6 +94,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
+
+    private val _lyrics = MutableStateFlow(LyricsUi())
+    val lyrics: StateFlow<LyricsUi> = _lyrics.asStateFlow()
+    private var lyricsJob: Job? = null
+
+    private val _mixOn = MutableStateFlow(Prefs.getLong(app, "mix_on", 0L) == 1L)
+    val mixOn: StateFlow<Boolean> = _mixOn.asStateFlow()
+
+    private val _mixSec = MutableStateFlow(Prefs.getLong(app, "mix_sec", 8L).toInt())
+    val mixSec: StateFlow<Int> = _mixSec.asStateFlow()
+
+    private val _import = MutableStateFlow(ImportState())
+    val importState: StateFlow<ImportState> = _import.asStateFlow()
+
+    /** Enlace recibido desde otra app con "Compartir" (se muestra en el diálogo de importar). */
+    private val _pendingImport = MutableStateFlow<String?>(null)
+    val pendingImport: StateFlow<String?> = _pendingImport.asStateFlow()
 
     private var radioEnabled = true
     private var radioFor: String? = null
@@ -154,7 +180,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun startPositionTicker() {
         viewModelScope.launch {
             while (true) {
-                delay(500)
+                delay(250)
                 val c = controller ?: continue
                 if (c.isPlaying) {
                     val pos = c.currentPosition.coerceAtLeast(0L)
@@ -353,6 +379,61 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 _messages.tryEmit(Engine.update(app))
             } catch (e: Throwable) {
                 _messages.tryEmit("No se pudo actualizar: ${e.message}")
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ Letras
+
+    fun loadLyrics(t: Track) {
+        val cur = _lyrics.value
+        if (cur.trackId == t.id && (cur.loading || cur.data != null)) return
+        lyricsJob?.cancel()
+        _lyrics.value = LyricsUi(t.id, loading = true)
+        lyricsJob = viewModelScope.launch {
+            val d = Lyrics.get(app, t)
+            _lyrics.value = LyricsUi(t.id, loading = false, data = d)
+        }
+    }
+
+    // ------------------------------------------------------------------ Mix DJ
+
+    fun setMix(on: Boolean) {
+        Prefs.putLong(app, "mix_on", if (on) 1L else 0L)
+        _mixOn.value = on
+        _messages.tryEmit(
+            if (on) "Mix DJ activado: las canciones se mezclarán solas"
+            else "Mix DJ desactivado"
+        )
+    }
+
+    fun setMixSeconds(sec: Int) {
+        Prefs.putLong(app, "mix_sec", sec.toLong())
+        _mixSec.value = sec
+    }
+
+    // ------------------------------------------------------------------ Importar playlists
+
+    fun setPendingImport(text: String?) { _pendingImport.value = text }
+
+    fun importPlaylist(input: String) {
+        if (_import.value.running) return
+        _import.value = ImportState(running = true, message = "Leyendo la lista…")
+        viewModelScope.launch {
+            try {
+                val r = Importer.import(input) { d, t, m ->
+                    _import.value = ImportState(running = true, done = d, total = t, message = m)
+                }
+                Library.createPlaylistWith(r.name, r.tracks)
+                val extra = buildString {
+                    if (r.notFound > 0) append(" (${r.notFound} no se encontraron)")
+                    if (r.note != null) append(". ").append(r.note)
+                }
+                _messages.tryEmit("Playlist “${r.name}” creada con ${r.tracks.size} canciones$extra")
+            } catch (e: Throwable) {
+                _messages.tryEmit(e.message ?: "No se pudo importar la lista")
+            } finally {
+                _import.value = ImportState()
             }
         }
     }

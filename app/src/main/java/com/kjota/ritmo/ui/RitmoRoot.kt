@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,7 +65,19 @@ fun RitmoRoot(vm: MainViewModel) {
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var pick by remember { mutableStateOf<Track?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var importOpen by remember { mutableStateOf(false) }
+    val pending by vm.pendingImport.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
+
+    // Enlace compartido desde otra app (Spotify, YouTube…): abre el diálogo de importar.
+    LaunchedEffect(pending) {
+        if (pending != null) {
+            importOpen = true
+            tab = 2
+            collection = null
+            playerOpen = false
+        }
+    }
 
     LaunchedEffect(Unit) {
         vm.messages.collect { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show() }
@@ -89,7 +102,7 @@ fun RitmoRoot(vm: MainViewModel) {
                 )
                 tab == 0 -> HomeScreen(vm, onOpenCollection = { collection = it }, onOpenSettings = { showSettings = true })
                 tab == 1 -> SearchScreen(vm, now.track?.id, onPickPlaylist = { pick = it })
-                else -> LibraryScreen(vm, onOpen = { collection = it })
+                else -> LibraryScreen(vm, onOpen = { collection = it }, onImport = { importOpen = true })
             }
 
             Column(
@@ -115,6 +128,12 @@ fun RitmoRoot(vm: MainViewModel) {
 
     pick?.let { PlaylistPicker(it, vm) { pick = null } }
     if (showSettings) SettingsDialog(vm) { showSettings = false }
+    if (importOpen) {
+        ImportDialog(vm, initial = pending.orEmpty()) {
+            importOpen = false
+            vm.setPendingImport(null)
+        }
+    }
 }
 
 @Composable
@@ -206,6 +225,7 @@ private fun Modifier.clip28(): Modifier = this.then(Modifier.clip(RoundedCornerS
 private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
     val version by Engine.version.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
+    val mixSec by vm.mixSec.collectAsStateWithLifecycle()
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xF2151A22),
@@ -218,6 +238,26 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
                     color = Pal.Dim, fontSize = 13.sp,
                 )
                 TextButton(onClick = { vm.updateEngine() }) { Text("Actualizar motor ahora", color = Pal.Green) }
+                Text("Mix DJ — duración de la mezcla", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(5, 8, 12, 16).forEach { sec ->
+                        val on = mixSec == sec
+                        Text(
+                            "${sec}s",
+                            color = if (on) Color(0xFF00210B) else Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (on) Pal.Green else Color.White.copy(alpha = 0.14f))
+                                .clickable { vm.setMixSeconds(sec) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                Text(
+                    "Se activa con el botón “Mix DJ” del reproductor. Con 5 s la mezcla es corta; con 16 s, larga y suave.",
+                    color = Pal.Dim, fontSize = 12.sp,
+                )
                 Text(
                     "Descargas: ${lib.downloads.size} canciones · ${formatSize(Library.usedBytes())} en el teléfono",
                     color = Color.White, fontSize = 14.sp,
