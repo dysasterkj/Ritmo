@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,7 +72,7 @@ import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Track
 
 @Composable
-fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track) -> Unit) {
+fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track) -> Unit, onOpenEq: () -> Unit) {
     val now by vm.now.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val prog by vm.downloading.collectAsStateWithLifecycle()
@@ -79,6 +80,8 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
     var drag by remember { mutableStateOf<Float?>(null) }
     var showLyrics by remember { mutableStateOf(false) }
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
+    val mixState by vm.mixBus.collectAsStateWithLifecycle()
+    val eqOn by vm.eqOn.collectAsStateWithLifecycle()
 
     Box(
         Modifier
@@ -121,6 +124,14 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 8.dp),
         ) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .size(width = 40.dp, height = 5.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.45f))
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClose) {
                     Icon(Icons.Rounded.KeyboardArrowDown, "Cerrar", tint = Color.White, modifier = Modifier.size(32.dp))
@@ -166,6 +177,28 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                 Spacer(Modifier.weight(0.4f))
 
 
+            }
+
+            if (mixState.mixing) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .glass(RoundedCornerShape(18.dp), tint = Pal.Green, strength = 1.6f)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.GraphicEq, null, tint = Pal.Green, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("MEZCLANDO", color = Pal.Green, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                    Spacer(Modifier.size(10.dp))
+                    Text(
+                        "${mixState.outTitle} → ${mixState.inTitle}",
+                        color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text("${(mixState.progress * 100).toInt()}%", color = Pal.Dim, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(10.dp))
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -265,6 +298,22 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 GlassPill(
                     modifier = Modifier.weight(1f),
+                    label = if (eqOn) "Ecualizador: sí" else "Ecualizador",
+                    active = eqOn,
+                    onClick = onOpenEq,
+                    icon = { Icon(Icons.Rounded.Tune, null, tint = if (eqOn) Pal.Green else Color.White) },
+                )
+                GlassPill(
+                    modifier = Modifier.weight(1f),
+                    label = "Playlist",
+                    onClick = { onPickPlaylist(t) },
+                    icon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White) },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                GlassPill(
+                    modifier = Modifier.fillMaxWidth(),
                     label = when {
                         downloaded -> "Descargada"
                         percent != null -> "Descargando $percent%"
@@ -278,12 +327,6 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                             null, tint = if (downloaded) Pal.Green else Color.White,
                         )
                     },
-                )
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = "Playlist",
-                    onClick = { onPickPlaylist(t) },
-                    icon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White) },
                 )
             }
             Spacer(Modifier.height(8.dp))

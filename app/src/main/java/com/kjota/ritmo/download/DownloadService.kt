@@ -66,7 +66,7 @@ class DownloadService : Service() {
             Engine.awaitReady()
             notify("Descargando: ${t.title}")
             val req = YoutubeDLRequest("https://www.youtube.com/watch?v=${t.id}")
-            req.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+            req.addOption("-f", "bestaudio/best")
             req.addOption("-o", Library.musicDir().absolutePath + "/%(id)s.%(ext)s")
             req.addOption("--no-playlist")
             req.addOption("--no-mtime")

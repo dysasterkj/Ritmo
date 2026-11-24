@@ -98,7 +98,7 @@ object YouTube {
         if (c != null && System.currentTimeMillis() - c.at < URL_TTL_MS) return c.url
         runBlocking { Engine.awaitReady() }
         val req = YoutubeDLRequest("$WATCH$id")
-        req.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+        req.addOption("-f", "bestaudio/best")
         req.addOption("-g")
         req.addOption("--no-playlist")
         req.addOption("--no-warnings")

@@ -3,8 +3,42 @@ package com.kjota.ritmo.ui
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedScroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedScroll.NestedScrollSource
+import androidx.compose.ui.input.nestedScroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.min
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,8 +117,26 @@ fun RitmoRoot(vm: MainViewModel) {
         vm.messages.collect { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show() }
     }
 
-    BackHandler(enabled = playerOpen || collection != null || tab != 0) {
+    var eqOpen by rememberSaveable { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // 0 = reproductor abierto, 1 = minimizado (queda solo el mini reproductor).
+    var closed by remember { mutableFloatStateOf(if (playerOpen) 0f else 1f) }
+    var settle by remember { mutableStateOf<Job?>(null) }
+    fun animateTo(target: Float, velocity: Float = 0f) {
+        settle?.cancel()
+        settle = scope.launch {
+            animate(
+                initialValue = closed, targetValue = target, initialVelocity = velocity,
+                animationSpec = spring(dampingRatio = 0.86f, stiffness = 420f),
+            ) { v, _ -> closed = v.coerceIn(0f, 1f) }
+        }
+    }
+    LaunchedEffect(playerOpen) { animateTo(if (playerOpen) 0f else 1f) }
+
+    BackHandler(enabled = eqOpen || playerOpen || collection != null || tab != 0) {
         when {
+            eqOpen -> eqOpen = false
             playerOpen -> playerOpen = false
             collection != null -> collection = null
             else -> tab = 0
@@ -92,7 +144,8 @@ fun RitmoRoot(vm: MainViewModel) {
     }
 
     AuroraBackground {
-        Box(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val hPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxHeight.toPx() }
             val open = collection
             when {
                 open != null -> CollectionScreen(
@@ -109,19 +162,86 @@ fun RitmoRoot(vm: MainViewModel) {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (now.track != null) MiniPlayer(vm) { playerOpen = true }
                 NavBar(tab) { tab = it; collection = null }
             }
 
+            if (closed < 0.999f) {
+                // Soltar: si fue rápido o bajó más de un tercio, se minimiza; si no, vuelve a abrirse.
+                fun release(velocityY: Float) {
+                    val vf = velocityY / hPx // fracción de pantalla por segundo
+                    val close = vf > 1.4f || (closed > 0.33f && vf > -1.2f)
+                    if (close) playerOpen = false else animateTo(0f, vf)
+                }
+                val connection = remember(hPx) {
+                    object : NestedScrollConnection {
+                        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y < 0f && closed > 0f) {
+                                settle?.cancel()
+                                val newV = (closed + available.y / hPx).coerceIn(0f, 1f)
+                                val used = (newV - closed) * hPx
+                                closed = newV
+                                return Offset(0f, used)
+                            }
+                            return Offset.Zero
+                        }
+
+                        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                            if (available.y > 0f) {
+                                settle?.cancel()
+                                closed = (closed + available.y / hPx).coerceIn(0f, 1f)
+                                return Offset(0f, available.y)
+                            }
+                            return Offset.Zero
+                        }
+
+                        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                            if (closed > 0f) { release(available.y); return available }
+                            return Velocity.Zero
+                        }
+                    }
+                }
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationY = closed * hPx
+                            val sc = 1f - 0.05f * closed
+                            scaleX = sc; scaleY = sc
+                            alpha = (1f - closed * 0.35f).coerceIn(0f, 1f)
+                        }
+                        .nestedScroll(connection)
+                        .pointerInput(hPx) {
+                            val tracker = VelocityTracker()
+                            detectVerticalDragGestures(
+                                onDragStart = { tracker.resetTracking(); settle?.cancel() },
+                                onVerticalDrag = { change, dy ->
+                                    tracker.addPosition(change.uptimeMillis, change.position)
+                                    closed = (closed + dy / hPx).coerceIn(0f, 1f)
+                                },
+                                onDragEnd = { release(tracker.calculateVelocity().y) },
+                                onDragCancel = { release(0f) },
+                            )
+                        },
+                ) {
+                    PlayerScreen(
+                        vm,
+                        onClose = { playerOpen = false },
+                        onPickPlaylist = { pick = it },
+                        onOpenEq = { eqOpen = true },
+                    )
+                }
+            }
+
             AnimatedVisibility(
-                visible = playerOpen,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
+                visible = eqOpen,
+                enter = slideInVertically(tween(320, easing = FastOutSlowInEasing)) { it },
+                exit = slideOutVertically(tween(260)) { it },
             ) {
-                PlayerScreen(vm, onClose = { playerOpen = false }, onPickPlaylist = { pick = it })
+                EqualizerScreen(vm, onClose = { eqOpen = false })
             }
         }
     }
@@ -147,7 +267,10 @@ private fun MiniPlayer(vm: MainViewModel, onOpen: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .glassBar(RoundedCornerShape(22.dp))
+            .glassBar(RoundedCornerShape(24.dp))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { _, dy -> if (dy < -10f) onOpen() }
+            }
             .clickable(onClick = onOpen),
     ) {
         Row(
@@ -186,46 +309,146 @@ private fun MiniPlayer(vm: MainViewModel, onOpen: () -> Unit) {
     }
 }
 
+/**
+ * Barra inferior de "vidrio líquido": una lente de luz (la gota) marca la pestaña activa.
+ * Al tocar, la gota se infla y brilla; al soltar viaja con efecto resorte, se estira en el camino
+ * y suelta una onda de agua. La acción se dispara al soltar.
+ */
 @Composable
 private fun NavBar(selected: Int, onSelect: (Int) -> Unit) {
-    Row(
+    val haptic = LocalHapticFeedback.current
+    var pressed by remember { mutableStateOf(-1) }
+    var ripples by remember { mutableStateOf(0) }
+    val ripple = remember { Animatable(1f) }
+    LaunchedEffect(ripples) {
+        if (ripples > 0) {
+            ripple.snapTo(0f)
+            ripple.animateTo(1f, tween(700, easing = FastOutSlowInEasing))
+        }
+    }
+
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .glassBar(RoundedCornerShape(28.dp))
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .height(68.dp)
+            .glassBar(RoundedCornerShape(34.dp)),
     ) {
-        NavItem("Inicio", Icons.Rounded.Home, selected == 0) { onSelect(0) }
-        NavItem("Buscar", Icons.Rounded.Search, selected == 1) { onSelect(1) }
-        NavItem("Biblioteca", Icons.Rounded.LibraryMusic, selected == 2) { onSelect(2) }
+        val pad = 5.dp
+        val tabW = (maxWidth - pad * 2) / 3
+        val target = if (pressed >= 0) pressed else selected
+        val pos by animateFloatAsState(
+            target.toFloat(),
+            spring(dampingRatio = 0.55f, stiffness = 320f),
+            label = "lens-pos",
+        )
+        val press by animateFloatAsState(
+            if (pressed >= 0) 1f else 0f,
+            spring(dampingRatio = 0.5f, stiffness = 520f),
+            label = "lens-press",
+        )
+        val stretch = 1f + min(0.32f, abs(pos - target) * 0.6f)
+
+        // Onda de agua que sale de la gota
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val p = ripple.value
+                    if (p < 1f) {
+                        val cx = (pad + tabW * (pos + 0.5f)).toPx()
+                        val cy = size.height / 2f
+                        val r0 = 24.dp.toPx()
+                        val r1 = 120.dp.toPx()
+                        for (k in 0..1) {
+                            val pk = (p - k * 0.18f).coerceIn(0f, 1f)
+                            if (pk > 0f) drawCircle(
+                                Color.White.copy(alpha = (1f - pk) * 0.40f),
+                                radius = r0 + (r1 - r0) * pk,
+                                center = Offset(cx, cy),
+                                style = Stroke(width = 2.dp.toPx() * (1f - pk) + 0.5f),
+                            )
+                        }
+                    }
+                },
+        )
+
+        // La gota (lente)
+        Box(
+            Modifier
+                .offset { IntOffset((pad + tabW * pos).roundToPx(), 5.dp.roundToPx()) }
+                .size(tabW, 58.dp)
+                .graphicsLayer {
+                    scaleX = (1f + 0.13f * press) * stretch
+                    scaleY = 1f + 0.20f * press
+                }
+                .clip(RoundedCornerShape(29.dp))
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.34f + 0.26f * press),
+                            Color.White.copy(alpha = 0.10f + 0.08f * press),
+                        ),
+                        center = Offset(40f, 8f),
+                        radius = 260f,
+                    )
+                )
+                .background(Pal.Green.copy(alpha = 0.10f + 0.16f * press))
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.70f), Color.White.copy(alpha = 0.12f))),
+                    RoundedCornerShape(29.dp),
+                ),
+        )
+
+        Row(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = pad)
+                .pointerInput(Unit) {
+                    fun idx(x: Float) = (x / (size.width / 3f)).toInt().coerceIn(0, 2)
+                    detectTapGestures(
+                        onPress = { o ->
+                            pressed = idx(o.x)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            tryAwaitRelease()
+                            pressed = -1
+                        },
+                        onTap = { o ->
+                            onSelect(idx(o.x))
+                            ripples++
+                        },
+                    )
+                },
+        ) {
+            NavItem("Inicio", Icons.Rounded.Home, selected == 0, Modifier.weight(1f))
+            NavItem("Buscar", Icons.Rounded.Search, selected == 1, Modifier.weight(1f))
+            NavItem("Biblioteca", Icons.Rounded.LibraryMusic, selected == 2, Modifier.weight(1f))
+        }
     }
 }
 
 @Composable
-private fun NavItem(label: String, icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+private fun NavItem(label: String, icon: ImageVector, active: Boolean, modifier: Modifier) {
     Column(
-        Modifier
-            .clip28()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 2.dp),
+        modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, label, tint = if (active) Pal.Green else Pal.Dim, modifier = Modifier.size(26.dp))
+        Icon(icon, label, tint = if (active) Pal.Green else Pal.Dim, modifier = Modifier.size(25.dp))
         Text(
             label, fontSize = 11.sp,
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
             color = if (active) Pal.Green else Pal.Dim,
         )
     }
 }
-
-private fun Modifier.clip28(): Modifier = this.then(Modifier.clip(RoundedCornerShape(20.dp)))
 
 @Composable
 private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
     val version by Engine.version.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val mixSec by vm.mixSec.collectAsStateWithLifecycle()
+    val curve by vm.mixCurve.collectAsStateWithLifecycle()
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color(0xF2151A22),
@@ -251,6 +474,22 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit) {
                                 .background(if (on) Pal.Green else Color.White.copy(alpha = 0.14f))
                                 .clickable { vm.setMixSeconds(sec) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                Text("Curva de la mezcla", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Suave", "Corte rápido", "Lineal").forEachIndexed { i, name ->
+                        val on = curve == i
+                        Text(
+                            name,
+                            color = if (on) Color(0xFF00210B) else Color.White,
+                            fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (on) Pal.Green else Color.White.copy(alpha = 0.14f))
+                                .clickable { vm.setMixCurve(i) }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                     }
                 }

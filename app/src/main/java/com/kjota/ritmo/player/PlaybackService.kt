@@ -27,6 +27,7 @@ import com.kjota.ritmo.data.Prefs
 import com.kjota.ritmo.engine.YouTube
 import java.io.IOException
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -44,6 +45,11 @@ import kotlin.math.sin
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaSessionService() {
 
+    companion object {
+        private const val GRACE_MS = 3_000L
+        private const val PREROLL_MS = 10_000L
+    }
+
     private var session: MediaSession? = null
     private lateinit var player: ExoPlayer
     private lateinit var tail: ExoPlayer
@@ -57,6 +63,9 @@ class PlaybackService : MediaSessionService() {
     private var mixMs = 8_000L
     private var mixElapsed = 0L
     private var lastTick = 0L
+    private var mixCurve = 0
+    private var prerollId: String? = null
+    private var lastSeekAt = 0L
 
     private val ticker = object : Runnable {
         override fun run() {
@@ -79,6 +88,9 @@ class PlaybackService : MediaSessionService() {
 
         player = buildPlayer(resolving, mainPlayer = true)
         tail = buildPlayer(resolving, mainPlayer = false)
+        // Los dos reproductores comparten sesión de audio: así el ecualizador afecta a ambos durante la mezcla.
+        tail.setAudioSessionId(player.getAudioSessionId())
+        AudioFx.attach(this, player.getAudioSessionId())
 
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -125,63 +137,134 @@ class PlaybackService : MediaSessionService() {
 
     private fun mixEnabled() = Prefs.getLong(this, "mix_on", 0L) == 1L
 
+    private fun clearPreroll() {
+        if (prerollId == null || inMix) return
+        try {
+            tail.stop()
+            tail.clearMediaItems()
+        } catch (_: Throwable) { }
+        prerollId = null
+    }
+
     private fun tick() {
         if (inMix) {
             stepMix()
             return
         }
-        if (!mixEnabled()) return
         val p = player
-        if (!p.isPlaying) return
-        if (p.repeatMode == Player.REPEAT_MODE_ONE) return
-        if (!p.hasNextMediaItem()) return
+        if (!mixEnabled() || p.repeatMode == Player.REPEAT_MODE_ONE || !p.hasNextMediaItem()) {
+            clearPreroll()
+            return
+        }
         val dur = p.duration
-        if (dur == C.TIME_UNSET || dur < 45_000L) return
+        if (dur == C.TIME_UNSET || dur < 45_000L) {
+            clearPreroll()
+            return
+        }
         val fade = Prefs.getLong(this, "mix_sec", 8L).coerceIn(3L, 20L) * 1000L
         val remaining = dur - p.currentPosition
-        if (remaining in 2_500L..fade) startMix(min(fade, remaining - 800L))
+        // Mucho antes del final no hace falta nada; la "cola" se prepara unos segundos antes.
+        if (remaining > fade + GRACE_MS + PREROLL_MS) {
+            clearPreroll()
+            return
+        }
+        val id = p.currentMediaItem?.mediaId ?: return
+        ensurePreroll(p, id)
+        if (remaining in 2_500L..(fade + GRACE_MS) && prerollReady(p, id)) {
+            startMix(fade, remaining)
+        }
     }
 
-    private fun startMix(ms: Long) {
+    /**
+     * Pre-roll: la "cola" carga la MISMA canción que suena y la sigue en silencio, sincronizada.
+     * Así, cuando empieza la mezcla ya está lista y no hay cortes ni silencios.
+     */
+    private fun ensurePreroll(p: ExoPlayer, id: String) {
+        val now = SystemClock.elapsedRealtime()
+        if (prerollId != id) {
+            val item = p.currentMediaItem ?: return
+            tail.volume = 0f
+            tail.setMediaItem(item, p.currentPosition + 1_500L)
+            tail.prepare()
+            tail.playWhenReady = p.playWhenReady
+            prerollId = id
+            lastSeekAt = now
+            return
+        }
+        if (tail.playWhenReady != p.playWhenReady) tail.playWhenReady = p.playWhenReady
+        if (tail.playbackState == Player.STATE_READY && tail.isPlaying && p.isPlaying) {
+            val drift = tail.currentPosition - p.currentPosition
+            if (abs(drift) > 150L && now - lastSeekAt > 900L) {
+                tail.seekTo(p.currentPosition + 80L)
+                lastSeekAt = now
+            }
+        }
+    }
+
+    private fun prerollReady(p: ExoPlayer, id: String): Boolean =
+        prerollId == id && p.isPlaying && tail.playbackState == Player.STATE_READY && tail.isPlaying &&
+            abs(tail.currentPosition - p.currentPosition) < 350L
+
+    private fun startMix(fade: Long, remaining: Long) {
         val item = player.currentMediaItem ?: return
-        mixMs = ms.coerceAtLeast(1_500L)
+        mixMs = min(fade, (remaining - 1_200L).coerceAtLeast(1_500L))
         mixElapsed = 0L
         lastTick = SystemClock.elapsedRealtime()
+        mixCurve = Prefs.getLong(this, "mix_curve", 0L).toInt()
         inMix = true
         expectTransition = true
 
-        // La "cola": sigue sonando el final de la canción que termina.
-        tail.setMediaItem(item, player.currentPosition + 300L)
+        val outTitle = item.mediaMetadata.title?.toString().orEmpty()
+        val next = if (player.hasNextMediaItem()) player.getMediaItemAt(player.nextMediaItemIndex) else null
+        MixBus.state.value = MixBus.State(true, 0f, outTitle, next?.mediaMetadata?.title?.toString().orEmpty())
+
+        // La "cola" ya suena en sincronía (en silencio): pasa a volumen completo y sigue la canción que termina.
         tail.volume = 1f
-        tail.prepare()
         tail.playWhenReady = true
 
-        // El principal pasa a la siguiente canción, empezando en silencio.
+        // El principal salta a la siguiente canción empezando en silencio.
         player.volume = 0f
         player.seekToNextMediaItem()
+    }
+
+    /** Ganancias (entra, sale) según la curva elegida. x va de 0 a 1. */
+    private fun gains(x: Float): Pair<Float, Float> {
+        return when (mixCurve) {
+            1 -> { // corte rápido: cruce corto en el centro
+                val t = ((x - 0.35f) / 0.30f).coerceIn(0f, 1f)
+                sin(t * PI / 2).toFloat() to cos(t * PI / 2).toFloat()
+            }
+            2 -> x to (1f - x) // lineal
+            else -> sin(x * PI / 2).toFloat() to cos(x * PI / 2).toFloat() // suave: potencia constante
+        }
     }
 
     private fun stepMix() {
         val now = SystemClock.elapsedRealtime()
         val dt = now - lastTick
         lastTick = now
-        // Solo avanza la mezcla mientras la nueva canción ya está sonando (así no se pierde en silencio).
+        // La mezcla avanza solo mientras la nueva canción ya está sonando (así no se pierde en silencio).
         if (player.isPlaying) mixElapsed += dt
         val x = (mixElapsed.toFloat() / mixMs).coerceIn(0f, 1f)
-        player.volume = sin(x * PI / 2).toFloat()
-        tail.volume = cos(x * PI / 2).toFloat()
-        if (x >= 1f) endMix()
+        val (gin, gout) = gains(x)
+        player.volume = gin
+        tail.volume = gout
+        MixBus.state.value = MixBus.state.value.copy(progress = x)
+        val tailDead = tail.playbackState == Player.STATE_ENDED || tail.playbackState == Player.STATE_IDLE
+        if (x >= 1f || tailDead) endMix()
     }
 
     private fun endMix() {
         inMix = false
         expectTransition = false
         mixElapsed = 0L
+        prerollId = null
         try {
             tail.stop()
             tail.clearMediaItems()
         } catch (_: Throwable) { }
         player.volume = 1f
+        MixBus.state.value = MixBus.State()
     }
 
     // ------------------------------------------------------------------ Resolución de canciones
@@ -208,6 +291,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         ticking = false
+        AudioFx.release()
         handler.removeCallbacksAndMessages(null)
         try { tail.release() } catch (_: Throwable) { }
         session?.run {

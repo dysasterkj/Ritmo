@@ -17,13 +17,19 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 - UI: `ui/Glass.kt` (aurora + `Modifier.glass()` / `glassBar()`), pantallas en `ui/*Screen.kt`, `RitmoRoot.kt` (navegación y mini reproductor).
 - Letras: `engine/Lyrics.kt` consulta LRCLIB (`/api/search`), limpia el título de YouTube, elige por duración (±12 s) y prefiere letra con tiempos (LRC).
   Caché en `cacheDir/lyrics`. Panel en `PlayerScreen.kt` (`LyricsPanel`): resalta la línea actual y tocar una línea salta a ese momento.
-- Mix DJ: en `PlaybackService` hay DOS ExoPlayer. Con "mix_on" (Prefs) activo y quedando ≤ `mix_sec` s, el principal salta a la siguiente
+- Mix DJ (v2, pre-roll): en `PlaybackService` hay DOS ExoPlayer (misma sesión de audio). ~10 s antes de la mezcla la "cola" (`tail`) carga la MISMA canción y la sigue en silencio, sincronizada (`ensurePreroll`); al empezar (`startMix`) sube a volumen 1 y el principal salta a la siguiente en silencio. Curvas: `mix_curve` 0 suave (seno/coseno), 1 corte rápido, 2 lineal. Estado visible en `player/MixBus.kt`. Descripción anterior:
+  DOS ExoPlayer. Con "mix_on" (Prefs) activo y quedando ≤ `mix_sec` s, el principal salta a la siguiente
   canción (volumen sube, curva seno) y el segundo (`tail`) sigue el final de la anterior (baja, coseno). `ticker` cada 80 ms durante la mezcla.
   Un salto manual del usuario durante la mezcla la cancela (`expectTransition`).
 - Importar playlists: `engine/Importer.kt`. YouTube/YT Music directo; Spotify vía página embed (`__NEXT_DATA__` → `trackList`, máx. ~100);
   Deezer vía api.deezer.com; SoundCloud/Bandcamp/otros vía yt-dlp `--flat-playlist`; texto "Artista - Canción". Lo que no es YouTube se busca
   en YouTube (3 en paralelo, se elige la duración más parecida). También entra por "Compartir" (intent SEND en el manifest).
 - `MainViewModel` conecta la UI con el reproductor mediante `MediaController`.
+
+- Ecualizador: `player/AudioFx.kt` (Equalizer + BassBoost + LoudnessEnhancer sobre la sesión de audio compartida; valores en Prefs `eq_on`, `eq_b<i>`, `bass`, `loud`). Pantalla `ui/EqualizerScreen.kt`.
+- Calidad: yt-dlp `-f bestaudio/best` (Opus ~160 kbps si existe) para streaming y descargas.
+- Inicio: `PullToRefreshBox`; cada refresh arma estantes distintas (pools en `MainViewModel`, chips de ánimo, "Porque escuchaste…").
+- Reproductor: el host en `RitmoRoot` arrastra el reproductor verticalmente (gesto + nestedScroll) para minimizarlo; NavBar = vidrio líquido con "gota" (lente con resorte, onda al tocar).
 
 ## Reglas heredadas de Bajalo (no cambiar sin motivo)
 - `android:extractNativeLibs="true"` y `useLegacyPackaging = true` (necesarios para yt-dlp/Python). `minSdk = 29`.
@@ -32,4 +38,4 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 - Si YouTube deja de responder: actualizar yt-dlp (Ajustes → "Actualizar motor ahora"; también se actualiza solo cada 24 h).
 
 ## Ideas pendientes
-Cola visible, temporizador de apagado, ecualizador, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.
+Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.

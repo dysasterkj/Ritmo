@@ -20,6 +20,8 @@ import com.kjota.ritmo.engine.Importer
 import com.kjota.ritmo.engine.Lyrics
 import com.kjota.ritmo.engine.LyricsData
 import com.kjota.ritmo.engine.YouTube
+import com.kjota.ritmo.player.AudioFx
+import com.kjota.ritmo.player.MixBus
 import com.kjota.ritmo.player.PlaybackService
 import com.kjota.ritmo.player.toMediaItem
 import com.kjota.ritmo.player.toTrack
@@ -34,8 +36,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 data class NowPlaying(
     val track: Track? = null,
@@ -62,16 +68,81 @@ data class LyricsUi(val trackId: String? = null, val loading: Boolean = false, v
 
 data class ImportState(val running: Boolean = false, val done: Int = 0, val total: Int = 0, val message: String = "")
 
-private val shelfQueries = listOf(
-    "Éxitos del momento" to "éxitos del momento música",
-    "Música chilena" to "música chilena popular",
-    "Reguetón" to "reguetón nuevo",
-    "Pop en español" to "pop en español hits",
-    "Rock clásico" to "rock clásico en español e inglés",
-    "Baladas románticas" to "baladas románticas",
-    "Lo-fi para concentrarte" to "lo-fi beats relax",
-    "Cumbia y salsa" to "cumbia salsa clásicos",
+private class ShelfDef(val title: String, val query: String)
+
+private val generalPool = listOf(
+    ShelfDef("Éxitos del momento", "éxitos del momento música"),
+    ShelfDef("Música chilena", "música chilena popular"),
+    ShelfDef("Reguetón", "reguetón nuevo"),
+    ShelfDef("Pop en español", "pop en español hits"),
+    ShelfDef("Rock clásico", "rock clásico en español e inglés"),
+    ShelfDef("Baladas románticas", "baladas románticas"),
+    ShelfDef("Lo-fi para concentrarte", "lo-fi beats relax"),
+    ShelfDef("Cumbia y salsa", "cumbia salsa clásicos"),
+    ShelfDef("Hip hop latino", "hip hop latino"),
+    ShelfDef("Indie y alternativo", "indie alternativo canciones"),
+    ShelfDef("Electrónica para bailar", "electrónica house dance"),
+    ShelfDef("Trap y flow urbano", "trap latino nuevo"),
+    ShelfDef("Rock en español", "rock en español 90s"),
+    ShelfDef("Bachata", "bachata románticas"),
+    ShelfDef("Para manejar de noche", "música para manejar de noche"),
+    ShelfDef("Clásicos de los 80", "éxitos de los 80"),
+    ShelfDef("Clásicos de los 2000", "éxitos de los 2000"),
+    ShelfDef("Jazz suave", "jazz suave relax"),
+    ShelfDef("Acústico", "acústico versiones en vivo"),
+    ShelfDef("Funk y soul", "funk soul clásicos"),
+    ShelfDef("R&B", "r&b nuevo"),
+    ShelfDef("Reggae", "reggae clásicos"),
+    ShelfDef("Cantautores", "cantautores en español"),
+    ShelfDef("Pop internacional", "pop internacional hits"),
 )
+
+val moodChips = listOf("Para ti", "Energía", "Relax", "Entrenar", "Fiesta", "Romance")
+
+private val moodPools: Map<Int, List<ShelfDef>> = mapOf(
+    1 to listOf(
+        ShelfDef("Energía total", "música para subir el ánimo energía"),
+        ShelfDef("Rock potente", "rock potente"),
+        ShelfDef("Pop arriba", "pop alegre hits"),
+        ShelfDef("Electrónica intensa", "electrónica energética"),
+        ShelfDef("Hip hop con fuerza", "hip hop energía"),
+        ShelfDef("Para despertar", "canciones para despertar con energía"),
+    ),
+    2 to listOf(
+        ShelfDef("Calma", "música relajante canciones"),
+        ShelfDef("Lo-fi tranquilo", "lo-fi chill beats"),
+        ShelfDef("Acústico suave", "acústico suave"),
+        ShelfDef("Jazz de fondo", "jazz café"),
+        ShelfDef("Para dormir", "música para dormir suave"),
+        ShelfDef("Piano relajante", "piano relajante"),
+    ),
+    3 to listOf(
+        ShelfDef("Para entrenar", "música para entrenar gym"),
+        ShelfDef("Trap para el gym", "trap gym motivación"),
+        ShelfDef("Rock para correr", "rock para correr"),
+        ShelfDef("Electrónica running", "electrónica para correr"),
+        ShelfDef("Reguetón gym", "reguetón para entrenar"),
+        ShelfDef("Motivación", "canciones motivación deporte"),
+    ),
+    4 to listOf(
+        ShelfDef("Fiesta latina", "fiesta latina mix"),
+        ShelfDef("Reguetón de fiesta", "reguetón viejo escuela fiesta"),
+        ShelfDef("Cumbia para bailar", "cumbia bailable"),
+        ShelfDef("Salsa y bachata", "salsa bachata bailable"),
+        ShelfDef("Éxitos para el carrete", "éxitos para carretear"),
+        ShelfDef("Electrónica de fiesta", "house fiesta mix"),
+    ),
+    5 to listOf(
+        ShelfDef("Baladas", "baladas románticas en español"),
+        ShelfDef("Boleros y clásicos", "boleros románticos"),
+        ShelfDef("Pop romántico", "pop romántico"),
+        ShelfDef("Bachata romántica", "bachata romántica"),
+        ShelfDef("R&B suave", "r&b slow romántico"),
+        ShelfDef("Para dedicar", "canciones para dedicar amor"),
+    ),
+)
+
+private val searchTwists = listOf("", " mix", " nuevo", " lo mejor", " playlist", " top", " favoritos")
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
@@ -104,6 +175,23 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private val _mixSec = MutableStateFlow(Prefs.getLong(app, "mix_sec", 8L).toInt())
     val mixSec: StateFlow<Int> = _mixSec.asStateFlow()
+
+    private val _mixCurve = MutableStateFlow(Prefs.getLong(app, "mix_curve", 0L).toInt())
+    val mixCurve: StateFlow<Int> = _mixCurve.asStateFlow()
+    val mixBus = MixBus.state
+
+    // Ecualizador
+    val eqBandInfo = AudioFx.bands
+    private val _eqOn = MutableStateFlow(Prefs.getLong(app, "eq_on", 0L) == 1L)
+    val eqOn: StateFlow<Boolean> = _eqOn.asStateFlow()
+    private val _eqLevels = MutableStateFlow((0 until 8).map { Prefs.getLong(app, "eq_b$it", 0L).toInt() })
+    val eqLevels: StateFlow<List<Int>> = _eqLevels.asStateFlow()
+    private val _bass = MutableStateFlow(Prefs.getLong(app, "bass", 0L).toInt())
+    val bass: StateFlow<Int> = _bass.asStateFlow()
+    private val _loud = MutableStateFlow(Prefs.getLong(app, "loud", 0L).toInt())
+    val loud: StateFlow<Int> = _loud.asStateFlow()
+    private val _eqPreset = MutableStateFlow(Prefs.getLong(app, "eq_preset", -1L).toInt())
+    val eqPreset: StateFlow<Int> = _eqPreset.asStateFlow()
 
     private val _import = MutableStateFlow(ImportState())
     val importState: StateFlow<ImportState> = _import.asStateFlow()
@@ -315,28 +403,64 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
 
+    private val _mood = MutableStateFlow(0)
+    val mood: StateFlow<Int> = _mood.asStateFlow()
+
+    fun setMood(i: Int) {
+        if (_mood.value == i) return
+        _mood.value = i
+        loadShelves(force = true)
+    }
+
+    /** Pull-to-refresh: cada vez arma estantes distintas (otros géneros, otros términos, otro orden). */
     fun loadShelves(force: Boolean = false) {
         if (_shelvesLoading.value) return
         if (!force && _shelves.value.isNotEmpty()) return
         _shelvesLoading.value = true
         viewModelScope.launch {
-            val gate = Semaphore(2)
-            val jobs = shelfQueries.map { (title, q) ->
-                launch {
+            val fresh = ArrayList<Pair<Int, Shelf>>()
+            val lock = Mutex()
+            suspend fun publish(order: Int, shelf: Shelf) = lock.withLock {
+                fresh.add(order to shelf)
+                _shelves.value = fresh.sortedBy { it.first }.map { it.second }
+            }
+            val gate = Semaphore(3)
+            val jobs = ArrayList<Job>()
+            val mood = _mood.value
+            val recent = Library.state.value.recent
+            var order = 0
+
+            // Personalizadas: "Porque escuchaste…" (solo en "Para ti")
+            if (mood == 0 && recent.isNotEmpty()) {
+                recent.shuffled().take(2).forEach { base ->
+                    val o = order++
+                    jobs.add(launch {
+                        gate.withPermit {
+                            try {
+                                val r = YouTube.radio(base.id, 20).shuffled().take(16)
+                                if (r.isNotEmpty()) publish(o, Shelf("Porque escuchaste “${base.title.take(34)}”", r))
+                            } catch (_: Throwable) { }
+                        }
+                    })
+                }
+            }
+
+            val pool = if (mood == 0) generalPool else (moodPools[mood].orEmpty() + generalPool.shuffled().take(2))
+            val previous = _shelves.value.map { it.title }.toSet()
+            // Prefiere géneros que no se vieron en la pantalla anterior.
+            val picks = (pool.filter { it.title !in previous }.shuffled() + pool.filter { it.title in previous }.shuffled())
+                .take(if (mood == 0) 7 else 6)
+            picks.forEach { def ->
+                val o = order++
+                jobs.add(launch {
                     gate.withPermit {
                         try {
-                            val r = YouTube.search(q, 15)
-                            if (r.isNotEmpty()) {
-                                _shelves.update { old ->
-                                    // Mantiene el orden original de las estanterías.
-                                    (old.filterNot { it.title == title } + Shelf(title, r))
-                                        .sortedBy { s -> shelfQueries.indexOfFirst { it.first == s.title } }
-                                }
-                            }
-                        } catch (_: Throwable) {
-                        }
+                            val q = def.query + searchTwists.random()
+                            val r = YouTube.search(q, 25).shuffled().take(16)
+                            if (r.isNotEmpty()) publish(o, Shelf(def.title, r))
+                        } catch (_: Throwable) { }
                     }
-                }
+                })
             }
             jobs.forEach { it.join() }
             _shelvesLoading.value = false
@@ -410,6 +534,72 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     fun setMixSeconds(sec: Int) {
         Prefs.putLong(app, "mix_sec", sec.toLong())
         _mixSec.value = sec
+    }
+
+    fun setMixCurve(c: Int) {
+        Prefs.putLong(app, "mix_curve", c.toLong())
+        _mixCurve.value = c
+    }
+
+    // ------------------------------------------------------------------ Ecualizador
+
+    private fun fx() = AudioFx.apply(app)
+
+    fun setEqOn(on: Boolean) {
+        Prefs.putLong(app, "eq_on", if (on) 1L else 0L)
+        _eqOn.value = on
+        fx()
+    }
+
+    fun setEqBand(i: Int, mB: Int) {
+        Prefs.putLong(app, "eq_b$i", mB.toLong())
+        _eqLevels.update { l -> l.toMutableList().also { it[i] = mB } }
+        Prefs.putLong(app, "eq_preset", -1L)
+        _eqPreset.value = -1
+        fx()
+    }
+
+    fun setBass(v: Int) {
+        Prefs.putLong(app, "bass", v.toLong())
+        _bass.value = v
+        fx()
+    }
+
+    fun setLoud(mB: Int) {
+        Prefs.putLong(app, "loud", mB.toLong())
+        _loud.value = mB
+        fx()
+    }
+
+    /** Presets: curva en dB según la posición de la banda (0 = graves, 1 = agudos). */
+    fun applyPreset(index: Int) {
+        val n = AudioFx.bands.value.size.coerceIn(1, 8).let { if (AudioFx.bands.value.isEmpty()) 5 else it }
+        val maxDb = AudioFx.bands.value.firstOrNull()?.maxDb ?: 12f
+        val levels = (0 until 8).map { i ->
+            if (i >= n) 0 else {
+                val f = if (n == 1) 0f else i.toFloat() / (n - 1)
+                val db = when (index) {
+                    1 -> 6f * (1f - f) * (1f - f)                       // Bajos
+                    2 -> 6f * f * f                                      // Agudos
+                    3 -> 5f * abs(2f * f - 1f) - 1.5f                    // Rock
+                    4 -> 4f * (1f - abs(2f * f - 1f)) - 1f - 2f * f * f  // Voz
+                    5 -> 3f * abs(2f * f - 1f) - 0.5f                    // Pop
+                    else -> 0f                                           // Normal
+                }
+                (db.coerceIn(-maxDb, maxDb) * 100f).roundToInt()
+            }
+        }
+        levels.forEachIndexed { i, v -> Prefs.putLong(app, "eq_b$i", v.toLong()) }
+        _eqLevels.value = levels
+        Prefs.putLong(app, "eq_preset", index.toLong())
+        _eqPreset.value = index
+        if (!_eqOn.value) setEqOn(true) else fx()
+    }
+
+    fun resetEq() {
+        applyPreset(0)
+        setBass(0)
+        setLoud(0)
     }
 
     // ------------------------------------------------------------------ Importar playlists
