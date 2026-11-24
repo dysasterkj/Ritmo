@@ -37,6 +37,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
     val version by Engine.version.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
+    val carOn by vm.carMode.collectAsStateWithLifecycle()
     val mixSec by vm.mixSec.collectAsStateWithLifecycle()
     val curve by vm.mixCurve.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -86,6 +87,16 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
                 }
             }
             upd.message?.let { Text(it, color = Pal.Dim, fontSize = 13.sp) }
+        }
+
+        SettingsCard(
+            "Modo auto",
+            "Pantalla horizontal con botones grandes. Para ver Waze al lado: con Ritmo abierto, usa pantalla dividida del teléfono y elige Waze; Ritmo se ajusta a media pantalla.",
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Activar modo auto", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = carOn, onCheckedChange = { vm.setCarMode(it) }, colors = switchColors())
+            }
         }
 
         SettingsCard("Mix DJ", "Las canciones se mezclan solas, sin cortes.") {

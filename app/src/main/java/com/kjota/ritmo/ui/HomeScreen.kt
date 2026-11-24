@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Settings
@@ -86,6 +87,9 @@ fun HomeScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ScreenTitle(greeting(), Modifier.weight(1f))
+                IconButton(onClick = { vm.setCarMode(true) }) {
+                    Icon(Icons.Rounded.DirectionsCar, "Modo auto", tint = Color.White)
+                }
                 IconButton(onClick = onOpenSettings) {
                     Icon(Icons.Rounded.Settings, "Ajustes", tint = Color.White)
                 }

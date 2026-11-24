@@ -11,8 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kjota.ritmo.ui.RitmoRoot
 import com.kjota.ritmo.ui.RitmoTheme
+import com.kjota.ritmo.ui.CarScreen
 import com.kjota.ritmo.ui.TvRoot
 import com.kjota.ritmo.ui.isTv
 
@@ -31,7 +34,16 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         handleShare(intent)
         val tv = isTv(this)
-        setContent { RitmoTheme { if (tv) TvRoot(vm) else RitmoRoot(vm) } }
+        setContent {
+            RitmoTheme {
+                val car by vm.carMode.collectAsStateWithLifecycle()
+                when {
+                    tv -> TvRoot(vm)
+                    car -> CarScreen(vm)
+                    else -> RitmoRoot(vm)
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

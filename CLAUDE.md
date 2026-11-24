@@ -45,5 +45,8 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 ## Actualizaciones
 `update/Updater.kt` consulta `releases/latest` de `dysasterkj/Ritmo` (el repo debe ser público), compara el último número del tag `v1.0.N` con `versionCode`, descarga a `cacheDir/updates` e instala con FileProvider (`REQUEST_INSTALL_PACKAGES`). Ajustes → Actualizaciones, y aviso en Inicio.
 
+## Modo auto
+`ui/CarScreen.kt`: pref `car_mode` (Ajustes o icono en Inicio); MainActivity muestra CarScreen en lugar de RitmoRoot. Horizontal forzado, botones grandes, se adapta a media pantalla (split con Waze). Botón Waze usa FLAG_ACTIVITY_LAUNCH_ADJACENT (solo sirve si ya está en pantalla dividida). TV: `ui/TvScreens.kt` (TvRoot) cuando `isTv()`.
+
 ## Ideas pendientes
 Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.

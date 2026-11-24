@@ -173,6 +173,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _mixOn = MutableStateFlow(Prefs.getLong(app, "mix_on", 0L) == 1L)
     val mixOn: StateFlow<Boolean> = _mixOn.asStateFlow()
 
+    private val _carMode = MutableStateFlow(Prefs.getLong(app, "car_mode", 0L) == 1L)
+    val carMode: StateFlow<Boolean> = _carMode.asStateFlow()
+
     private val _mixSec = MutableStateFlow(Prefs.getLong(app, "mix_sec", 8L).toInt())
     val mixSec: StateFlow<Int> = _mixSec.asStateFlow()
 
@@ -527,6 +530,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ Mix DJ
+
+    fun setCarMode(on: Boolean) {
+        Prefs.putLong(app, "car_mode", if (on) 1L else 0L)
+        _carMode.value = on
+    }
 
     fun setMix(on: Boolean) {
         Prefs.putLong(app, "mix_on", if (on) 1L else 0L)
