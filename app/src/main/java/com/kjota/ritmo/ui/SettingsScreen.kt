@@ -91,11 +91,18 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
 
         SettingsCard(
             "Modo auto",
-            "Pantalla horizontal con botones grandes. Para ver Waze al lado: con Ritmo abierto, usa pantalla dividida del teléfono y elige Waze; Ritmo se ajusta a media pantalla.",
+            "Pantalla horizontal con botones grandes, dividida con Waze al lado (como Android Auto).",
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Activar modo auto", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Switch(checked = carOn, onCheckedChange = { vm.setCarMode(it) }, colors = switchColors())
+            }
+            Text(
+                "Para que se divida sola y abra Waze al lado, activa \"Ritmo: pantalla dividida\" en Accesibilidad (una sola vez).",
+                color = Pal.Dim, fontSize = 13.sp,
+            )
+            GreenPill("Abrir Accesibilidad") {
+                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
 

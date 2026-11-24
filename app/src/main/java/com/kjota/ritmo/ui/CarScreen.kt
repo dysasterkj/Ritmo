@@ -1,6 +1,14 @@
 package com.kjota.ritmo.ui
 
 import android.content.Intent
+import android.provider.Settings
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.rounded.CallSplit
+import com.kjota.ritmo.player.CarSplitService
+import kotlinx.coroutines.delay
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -90,6 +98,27 @@ fun CarScreen(vm: MainViewModel) {
         }
     }
 
+    // Al entrar al modo auto: divide la pantalla (si el permiso está activo) y abre Waze al lado.
+    var weSplit by rememberSaveable { mutableStateOf(false) }
+    var autoDone by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (autoDone) return@LaunchedEffect
+        autoDone = true
+        val act = ctx.findActivity()
+        if (act != null && !act.isInMultiWindowMode && CarSplitService.enabled) {
+            weSplit = CarSplitService.toggleSplit()
+            delay(1200)
+        }
+        if (act != null && (act.isInMultiWindowMode || !CarSplitService.enabled)) openWaze()
+    }
+
+    fun exitCar() {
+        val act = ctx.findActivity()
+        if (weSplit && act != null && act.isInMultiWindowMode) CarSplitService.toggleSplit()
+        vm.setCarMode(false)
+    }
+    androidx.activity.compose.BackHandler { exitCar() }
+
     AuroraBackground {
         if (t != null) {
             AsyncImage(
@@ -116,8 +145,8 @@ fun CarScreen(vm: MainViewModel) {
                 Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         t?.title ?: "Modo auto", color = Color.White, fontWeight = FontWeight.ExtraBold,
-                        fontSize = if (wide) 30.sp else 20.sp, lineHeight = if (wide) 34.sp else 24.sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        fontSize = if (wide) 24.sp else 19.sp, lineHeight = if (wide) 28.sp else 23.sp,
+                        maxLines = if (maxHeight < 420.dp) 1 else 2, overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         t?.artist ?: "Elige qué escuchar", color = Pal.Dim,
@@ -148,8 +177,8 @@ fun CarScreen(vm: MainViewModel) {
 
             @Composable
             fun Controls() {
-                val big = if (wide) 104.dp else 84.dp
-                val side = if (wide) 76.dp else 64.dp
+                val big = (maxHeight * 0.24f).coerceIn(64.dp, 100.dp)
+                val side = big * 0.72f
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -205,19 +234,22 @@ fun CarScreen(vm: MainViewModel) {
                                 ?: Toast.makeText(ctx, "Cargando… prueba en un momento", Toast.LENGTH_SHORT).show()
                         }
                     }
-                    item { CarChip(Icons.Rounded.Navigation, "Waze", false) { openWaze() } }
-                    item { CarChip(Icons.Rounded.Close, "Salir", false) { vm.setCarMode(false) } }
                 }
             }
 
             if (wide) {
-                Row(Modifier.fillMaxSize().padding(24.dp), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Box(Modifier.weight(0.9f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                val cover = (maxHeight - 32.dp).coerceAtLeast(120.dp)
+                Row(Modifier.fillMaxSize().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
                         if (t != null) {
-                            Cover(t.thumbHq, Modifier.fillMaxWidth().aspectRatio(1f).glass(RoundedCornerShape(26.dp), strength = 1.6f), 26)
+                            Cover(t.thumbHq, Modifier.size(cover).glass(RoundedCornerShape(22.dp), strength = 1.6f), 22)
                         }
                     }
-                    Column(Modifier.weight(1.2f).fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    Column(
+                        Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
+                    ) {
+                        Spacer(Modifier.height(40.dp))
                         Info()
                         Progress()
                         Controls()
@@ -226,12 +258,14 @@ fun CarScreen(vm: MainViewModel) {
                 }
             } else {
                 Column(
-                    Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        if (t != null) {
-                            Cover(t.thumbHq, Modifier.fillMaxHeight().aspectRatio(1f).glass(RoundedCornerShape(22.dp), strength = 1.6f), 22)
+                    Spacer(Modifier.height(36.dp))
+                    if (t != null) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            val side = (maxHeight * 0.34f).coerceIn(80.dp, 220.dp)
+                            Cover(t.thumbHq, Modifier.size(side).glass(RoundedCornerShape(20.dp), strength = 1.6f), 20)
                         }
                     }
                     Info()
@@ -240,11 +274,33 @@ fun CarScreen(vm: MainViewModel) {
                     Quick()
                 }
             }
+
+            // Salir y Waze siempre visibles arriba a la derecha
+            Row(
+                Modifier.align(Alignment.TopEnd).padding(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CarRound(Icons.Rounded.Navigation, "Abrir Waze") { openWaze() }
+                if (!CarSplitService.enabled) {
+                    CarRound(Icons.Rounded.CallSplit, "Activar pantalla dividida automática") {
+                        ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+                CarRound(Icons.Rounded.Close, "Salir del modo auto") { exitCar() }
+            }
         }
     }
 }
 
 private fun Modifier.androidxBlur(): Modifier = this.then(Modifier.blur(70.dp))
+
+@Composable
+private fun CarRound(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Box(
+        Modifier.size(46.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(24.dp)) }
+}
 
 @Composable
 private fun CarBtn(icon: ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
@@ -260,7 +316,7 @@ private fun CarBtn(icon: ImageVector, label: String, size: androidx.compose.ui.u
 private fun CarChip(icon: ImageVector?, label: String, active: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
-            .height(52.dp)
+            .height(46.dp)
             .clip(RoundedCornerShape(50))
             .background(if (active) Pal.Green.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.16f))
             .clickable(onClick = onClick)

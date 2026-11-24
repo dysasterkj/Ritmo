@@ -1,1 +1,4 @@
-<resources><string name="app_name">Ritmo</string></resources>
+<resources>
+    <string name="app_name">Ritmo</string>
+    <string name="car_split_desc">Solo se usa para dividir la pantalla (Ritmo arriba/izquierda y Waze al lado) cuando activas el modo auto. No lee ni guarda nada de tu pantalla.</string>
+</resources>

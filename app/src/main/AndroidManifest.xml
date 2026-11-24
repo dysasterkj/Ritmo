@@ -58,6 +58,20 @@
             </intent-filter>
         </service>
 
+        <!-- Permite dividir la pantalla automáticamente en el modo auto (Ritmo + Waze) -->
+        <service
+            android:name=".player.CarSplitService"
+            android:exported="false"
+            android:label="Ritmo: pantalla dividida"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/car_split_service" />
+        </service>
+
         <service
             android:name=".download.DownloadService"
             android:exported="false"
