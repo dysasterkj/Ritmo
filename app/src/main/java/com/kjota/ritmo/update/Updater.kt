@@ -67,13 +67,22 @@ object Updater {
         _state.update { it.copy(installed = installedName(app), checking = true, message = null) }
         scope.launch {
             try {
-                val conn = URL("https://api.github.com/repos/$REPO/releases/latest").openConnection() as HttpURLConnection
+                val conn = URL("https://api.github.com/repos/$REPO/releases?per_page=15").openConnection() as HttpURLConnection
                 conn.setRequestProperty("Accept", "application/vnd.github+json")
                 conn.setRequestProperty("User-Agent", UA)
                 conn.connectTimeout = 15_000
                 conn.readTimeout = 20_000
                 if (conn.responseCode != 200) throw IllegalStateException("HTTP ${conn.responseCode}")
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val arr = org.json.JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+                // Se toma la versión con el número más alto (GitHub puede marcar como "latest" una anterior si dos compilaciones terminan juntas).
+                var json = JSONObject()
+                var bestBuild = -1
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    if (o.optBoolean("draft") || o.optBoolean("prerelease")) continue
+                    val b = o.optString("tag_name").trimStart('v', 'V').substringAfterLast('.').toIntOrNull() ?: 0
+                    if (b > bestBuild) { bestBuild = b; json = o }
+                }
                 val tag = json.optString("tag_name")
                 val build = tag.trimStart('v', 'V').substringAfterLast('.').toIntOrNull() ?: 0
                 var url = ""

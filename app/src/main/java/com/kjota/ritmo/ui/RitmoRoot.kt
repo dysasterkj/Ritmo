@@ -186,7 +186,7 @@ fun RitmoRoot(vm: MainViewModel) {
                     onBack = { collection = null },
                     onPickPlaylist = { pick = it },
                 )
-                tab == 0 -> HomeScreen(vm, onOpenCollection = { collection = it }, onOpenSettings = { tab = 3; collection = null })
+                tab == 0 -> HomeScreen(vm, onOpenCollection = { collection = it }, onOpenSettings = { tab = 3; collection = null }, onPickPlaylist = { pick = it })
                 tab == 1 -> SearchScreen(vm, now.track?.id, onPickPlaylist = { pick = it })
                 tab == 2 -> LibraryScreen(vm, onOpen = { collection = it }, onImport = { importOpen = true })
                 else -> SettingsScreen(vm, onOpenEq = { eqOpen = true })

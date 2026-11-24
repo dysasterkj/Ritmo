@@ -78,3 +78,10 @@ fun Modifier.tvClickable(shape: Shape = RoundedCornerShape(16.dp), onClick: () -
         .then(if (focused) Modifier.border(2.5.dp, Color.White, shape) else Modifier)
         .clickable(onClick = onClick)
 }
+
+/** True cuando la app corre en una Android TV / Google TV. */
+fun isTv(c: android.content.Context): Boolean {
+    val um = c.getSystemService(android.content.Context.UI_MODE_SERVICE) as? android.app.UiModeManager
+    return um?.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
+        c.packageManager.hasSystemFeature("android.software.leanback")
+}

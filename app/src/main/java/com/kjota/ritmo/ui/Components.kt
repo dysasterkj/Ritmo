@@ -203,7 +203,7 @@ fun TrackRow(
 }
 
 @Composable
-private fun MenuItem(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+internal fun MenuItem(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     DropdownMenuItem(
         text = { Text(text, color = Color.White) },
         leadingIcon = { Icon(icon, null, tint = Pal.Dim) },

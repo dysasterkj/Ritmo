@@ -64,7 +64,9 @@ fun HomeScreen(
     vm: MainViewModel,
     onOpenCollection: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onPickPlaylist: (Track) -> Unit = {},
 ) {
+    val now by vm.now.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val shelves by vm.shelves.collectAsStateWithLifecycle()
     val loading by vm.shelvesLoading.collectAsStateWithLifecycle()
@@ -160,7 +162,7 @@ fun HomeScreen(
         }
 
         if (lib.recent.size > 4) {
-            item { ShelfRow("Escuchado hace poco", lib.recent) { i -> vm.play(lib.recent, i) } }
+            item { ShelfRow("Escuchado hace poco", lib.recent, vm, now.track?.id, onPickPlaylist) { i -> vm.play(lib.recent, i) } }
         }
 
         shelves.firstOrNull()?.let { first ->
@@ -168,7 +170,7 @@ fun HomeScreen(
         }
 
         shelves.forEachIndexed { idx, shelf ->
-            item(key = "${shelf.title}#$idx") { ShelfRow(shelf.title, shelf.tracks) { i -> vm.play(shelf.tracks, i) } }
+            item(key = "${shelf.title}#$idx") { ShelfRow(shelf.title, shelf.tracks, vm, now.track?.id, onPickPlaylist) { i -> vm.play(shelf.tracks, i) } }
         }
 
         if (loading && shelves.isEmpty()) item { Loader() }
@@ -258,22 +260,22 @@ private fun QuickTile(
 }
 
 @Composable
-private fun ShelfRow(title: String, tracks: List<Track>, onPlay: (Int) -> Unit) {
+private fun ShelfRow(
+    title: String,
+    tracks: List<Track>,
+    vm: MainViewModel,
+    currentId: String?,
+    onPickPlaylist: (Track) -> Unit,
+    onPlay: (Int) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(title)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
-                Column(
-                    Modifier
-                        .width(150.dp)
-                        .tvClickable(RoundedCornerShape(18.dp)) { onPlay(i) },
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Cover(t.thumb, Modifier.size(150.dp), 18)
-                    Text(t.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Text(t.artist, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp, color = Pal.Dim)
-                }
+                VideoCard(
+                    t, vm, onClick = { onPlay(i) }, onPickPlaylist = onPickPlaylist,
+                    isCurrent = t.id == currentId, modifier = Modifier.width(250.dp),
+                )
             }
         }
     }

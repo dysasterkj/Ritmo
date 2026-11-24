@@ -365,7 +365,7 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun ModeToggle(mode: Int, onMode: (Int) -> Unit) {
+internal fun ModeToggle(mode: Int, onMode: (Int) -> Unit) {
     val items = listOf(
         Icons.Rounded.Headphones to "Carátula",
         Icons.Rounded.Lyrics to "Letra",
@@ -417,7 +417,7 @@ private fun GlassPill(
 
 /** Letra de la canción. Con tiempos: resalta la línea actual y al tocar una línea salta a ese momento. */
 @Composable
-private fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modifier: Modifier, big: Boolean = false) {
+internal fun LyricsPanel(vm: MainViewModel, track: Track, positionMs: Long, modifier: Modifier, big: Boolean = false) {
     val k = if (big) 1.4f else 1f
     val ly by vm.lyrics.collectAsStateWithLifecycle()
     LaunchedEffect(track.id) { vm.loadLyrics(track) }

@@ -41,9 +41,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Track
 
-private data class Genre(val name: String, val query: String, val color: Color)
+internal data class Genre(val name: String, val query: String, val color: Color)
 
-private val genres = listOf(
+internal val genres = listOf(
     Genre("Pop", "pop hits", Pal.Pink),
     Genre("Reguetón", "reguetón", Pal.Orange),
     Genre("Rock", "rock", Color(0xFFE5484D)),
@@ -88,10 +88,10 @@ fun SearchScreen(
 
             st.done && st.results.isNotEmpty() -> {
                 itemsIndexed(st.results, key = { _, t -> t.id }) { i, t ->
-                    TrackRow(
-                        track = t, vm = vm, isCurrent = t.id == currentId,
-                        onClick = { vm.play(st.results, i) },
-                        onPickPlaylist = onPickPlaylist,
+                    VideoCard(
+                        t, vm, onClick = { vm.play(st.results, i) }, onPickPlaylist = onPickPlaylist,
+                        isCurrent = t.id == currentId,
+                        modifier = Modifier.padding(bottom = 10.dp),
                     )
                 }
             }
@@ -129,7 +129,7 @@ fun SearchScreen(
 }
 
 @Composable
-private fun GlassSearchField(
+internal fun GlassSearchField(
     value: String,
     onValueChange: (String) -> Unit,
     onSearch: () -> Unit,

@@ -13,6 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.kjota.ritmo.ui.RitmoRoot
 import com.kjota.ritmo.ui.RitmoTheme
+import com.kjota.ritmo.ui.TvRoot
+import com.kjota.ritmo.ui.isTv
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -28,7 +30,8 @@ class MainActivity : ComponentActivity() {
         )
         if (Build.VERSION.SDK_INT >= 33) askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         handleShare(intent)
-        setContent { RitmoTheme { RitmoRoot(vm) } }
+        val tv = isTv(this)
+        setContent { RitmoTheme { if (tv) TvRoot(vm) else RitmoRoot(vm) } }
     }
 
     override fun onNewIntent(intent: Intent) {

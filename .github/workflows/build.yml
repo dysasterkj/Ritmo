@@ -27,4 +27,8 @@ jobs:
         run: |
           V="1.0.${{ github.run_number }}"
           cp app/build/outputs/apk/debug/*.apk "Ritmo-v$V.apk"
-          gh release create "v$V" "Ritmo-v$V.apk" --title "Ritmo v$V" --notes "APK listo para instalar. Se instala encima de la versión anterior."
+          cp "Ritmo-v$V.apk" Ritmo.apk
+          gh release create "v$V" "Ritmo-v$V.apk" Ritmo.apk --title "Ritmo v$V" --notes "APK listo para instalar. Se instala encima de la versión anterior."
+          # Marca como "latest" la versión con el número más alto (para el enlace fijo de descarga)
+          MAX=$(gh release list --limit 30 --json tagName -q '.[].tagName' | sed 's/^v1\.0\.//' | sort -n | tail -1)
+          gh release edit "v1.0.$MAX" --latest
