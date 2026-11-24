@@ -193,6 +193,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _eqPreset = MutableStateFlow(Prefs.getLong(app, "eq_preset", -1L).toInt())
     val eqPreset: StateFlow<Int> = _eqPreset.asStateFlow()
 
+    private val _mood = MutableStateFlow(0)
+    val mood: StateFlow<Int> = _mood.asStateFlow()
+
     private val _import = MutableStateFlow(ImportState())
     val importState: StateFlow<ImportState> = _import.asStateFlow()
 
@@ -402,9 +405,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _search.value = SearchState()
     }
 
-
-    private val _mood = MutableStateFlow(0)
-    val mood: StateFlow<Int> = _mood.asStateFlow()
 
     fun setMood(i: Int) {
         if (_mood.value == i) return
