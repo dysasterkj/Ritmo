@@ -28,6 +28,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Library
 import com.kjota.ritmo.engine.Engine
+import com.kjota.ritmo.update.Updater
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
@@ -38,6 +41,8 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
     val curve by vm.mixCurve.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
     val vh by vm.videoHeight.collectAsStateWithLifecycle()
+    val ctx = LocalContext.current
+    val upd by Updater.state.collectAsStateWithLifecycle()
 
     Column(
         Modifier
@@ -48,6 +53,40 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ScreenTitle("Ajustes")
+
+        SettingsCard(
+            "Actualizaciones",
+            "Versión instalada: " + (upd.installed.ifEmpty { "…" }),
+        ) {
+            val rel = upd.release
+            when {
+                upd.downloading -> {
+                    Text("Descargando… ${upd.progress} %", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    LinearProgressIndicator(
+                        progress = { upd.progress / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Pal.Green,
+                        trackColor = Color.White.copy(alpha = 0.18f),
+                    )
+                }
+                rel != null -> {
+                    Text(
+                        "Hay una versión nueva: ${rel.tag}" +
+                            (if (rel.sizeBytes > 0) " (${formatSize(rel.sizeBytes)})" else ""),
+                        color = Color.White, fontWeight = FontWeight.SemiBold,
+                    )
+                    if (upd.downloaded) {
+                        GreenPill("Instalar ${rel.tag}") { Updater.install(ctx) }
+                    } else {
+                        GreenPill("Descargar e instalar") { Updater.downloadAsync(ctx) }
+                    }
+                }
+                else -> GreenPill(if (upd.checking) "Buscando…" else "Buscar actualizaciones") {
+                    if (!upd.checking) Updater.checkAsync(ctx, manual = true)
+                }
+            }
+            upd.message?.let { Text(it, color = Pal.Dim, fontSize = 13.sp) }
+        }
 
         SettingsCard("Mix DJ", "Las canciones se mezclan solas, sin cortes.") {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,3 +188,16 @@ private fun switchColors() = SwitchDefaults.colors(
     uncheckedTrackColor = Color.White.copy(alpha = 0.2f), uncheckedThumbColor = Color.White,
     uncheckedBorderColor = Color.Transparent,
 )
+
+@Composable
+private fun GreenPill(text: String, onClick: () -> Unit) {
+    Text(
+        text,
+        color = Color(0xFF00210B), fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Pal.Green)
+            .tvClickable(RoundedCornerShape(50), onClick)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+    )
+}

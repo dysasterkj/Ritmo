@@ -549,10 +549,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ Video
 
-    /** Pone el video en pantalla completa: el audio queda en pausa mientras se ve. */
+    /** Abre el reproductor en modo Video: el audio queda en pausa mientras se ve. */
+    private var videoAutoplay = false
+
+    fun consumeVideoAutoplay(): Boolean = videoAutoplay.also { videoAutoplay = false }
+
     fun watchVideo(t: Track) {
         play(listOf(t), 0, radio = true)
         controller?.pause()
+        videoAutoplay = true
         _openVideo.tryEmit(Unit)
     }
 

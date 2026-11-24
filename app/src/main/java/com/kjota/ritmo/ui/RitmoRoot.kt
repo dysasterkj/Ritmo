@@ -107,7 +107,8 @@ fun RitmoRoot(vm: MainViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var collection by rememberSaveable { mutableStateOf<String?>(null) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
-    var videoOpen by rememberSaveable { mutableStateOf(false) }
+    var playerMode by rememberSaveable { mutableIntStateOf(0) }
+    var videoFull by rememberSaveable { mutableStateOf(false) }
     var lyricsFull by rememberSaveable { mutableStateOf(false) }
     var pick by remember { mutableStateOf<Track?>(null) }
     var importOpen by remember { mutableStateOf(false) }
@@ -125,7 +126,12 @@ fun RitmoRoot(vm: MainViewModel) {
     }
 
     LaunchedEffect(Unit) {
-        vm.openVideo.collect { videoOpen = true }
+        vm.openVideo.collect { playerMode = 2; playerOpen = true }
+    }
+    LaunchedEffect(playerOpen) { if (!playerOpen && !videoFull) playerMode = 0 }
+
+    LaunchedEffect(Unit) {
+        com.kjota.ritmo.update.Updater.checkAsync(ctx, manual = false)
     }
 
     LaunchedEffect(Unit) {
@@ -149,8 +155,12 @@ fun RitmoRoot(vm: MainViewModel) {
     }
     LaunchedEffect(playerOpen) { animateTo(if (playerOpen) 0f else 1f) }
 
-    BackHandler(enabled = lyricsFull || eqOpen || playerOpen || collection != null || tab != 0) {
+    val videoActive = (playerOpen && playerMode == 2) || videoFull
+    val video = if (videoActive) rememberVideoState(vm) else null
+
+    BackHandler(enabled = videoFull || lyricsFull || eqOpen || playerOpen || collection != null || tab != 0) {
         when {
+            videoFull -> videoFull = false
             lyricsFull -> lyricsFull = false
             eqOpen -> eqOpen = false
             playerOpen -> playerOpen = false
@@ -253,11 +263,14 @@ fun RitmoRoot(vm: MainViewModel) {
                 ) {
                     PlayerScreen(
                         vm,
+                        mode = playerMode,
+                        onMode = { playerMode = it },
+                        video = video,
                         onClose = { playerOpen = false },
                         onPickPlaylist = { pick = it },
                         onOpenEq = { eqOpen = true },
-                        onWatchVideo = { videoOpen = true },
                         onFullLyrics = { lyricsFull = true },
+                        onVideoFull = { videoFull = true },
                     )
                 }
             }
@@ -272,7 +285,7 @@ fun RitmoRoot(vm: MainViewModel) {
             }
 
             if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
-            if (videoOpen) VideoScreen(vm, onClose = { videoOpen = false })
+            if (videoFull && video != null) VideoFullScreen(vm, video, onClose = { videoFull = false })
         }
     }
 

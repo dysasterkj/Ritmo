@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Track
 import com.kjota.ritmo.moodChips
+import com.kjota.ritmo.update.Updater
 import java.util.Calendar
 
 private fun greeting(): String {
@@ -68,6 +69,7 @@ fun HomeScreen(
     val shelves by vm.shelves.collectAsStateWithLifecycle()
     val loading by vm.shelvesLoading.collectAsStateWithLifecycle()
     val mood by vm.mood.collectAsStateWithLifecycle()
+    val upd by Updater.state.collectAsStateWithLifecycle()
 
     PullToRefreshBox(
         isRefreshing = loading,
@@ -84,6 +86,25 @@ fun HomeScreen(
                 ScreenTitle(greeting(), Modifier.weight(1f))
                 IconButton(onClick = onOpenSettings) {
                     Icon(Icons.Rounded.Settings, "Ajustes", tint = Color.White)
+                }
+            }
+        }
+
+        upd.release?.let { rel ->
+            item(key = "update") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .glass(RoundedCornerShape(18.dp), tint = Pal.Green, strength = 1.6f)
+                        .tvClickable(RoundedCornerShape(18.dp)) { onOpenSettings() }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Nueva versión ${rel.tag}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Toca para actualizar desde Ajustes", color = Pal.Dim, fontSize = 12.5.sp)
+                    }
+                    Icon(Icons.Rounded.Download, "Actualizar", tint = Pal.Green)
                 }
             }
         }

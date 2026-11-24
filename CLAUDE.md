@@ -37,5 +37,13 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 - No agregar SDKs de publicidad ni telemetría. No implementar nada para saltarse DRM.
 - Si YouTube deja de responder: actualizar yt-dlp (Ajustes → "Actualizar motor ahora"; también se actualiza solo cada 24 h).
 
+## Video y TV
+- Reproductor con selector superior de 3 modos (carátula / letra / video, como YouTube Music) en `ui/PlayerScreen.kt` (`ModeToggle`). Los pills de abajo son solo Mix DJ, Ecualizador, Descargar y Playlist.
+- `ui/VideoScreen.kt`: `rememberVideoState(vm)` crea un ExoPlayer de video SOLO mientras el modo Video (o su pantalla completa) está activo; `VideoInline` (16:9 dentro del reproductor) y `VideoFullScreen` comparten el mismo `VideoState`. El audio se pausa y se retoma con `vm.endVideo`.
+- TV: manifest leanback, `tvClickable` (borde de foco), columna máx. 640dp. Pendiente: layout propio para TV y miniaturas 16:9 en Inicio/Búsqueda.
+
+## Actualizaciones
+`update/Updater.kt` consulta `releases/latest` de `dysasterkj/Ritmo` (el repo debe ser público), compara el último número del tag `v1.0.N` con `versionCode`, descarga a `cacheDir/updates` e instala con FileProvider (`REQUEST_INSTALL_PACKAGES`). Ajustes → Actualizaciones, y aviso en Inicio.
+
 ## Ideas pendientes
 Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.

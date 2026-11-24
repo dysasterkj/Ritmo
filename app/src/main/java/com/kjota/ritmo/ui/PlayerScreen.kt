@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,14 +76,24 @@ import com.kjota.ritmo.MainViewModel
 import com.kjota.ritmo.data.Track
 
 @Composable
-fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track) -> Unit, onOpenEq: () -> Unit, onWatchVideo: () -> Unit, onFullLyrics: () -> Unit) {
+fun PlayerScreen(
+    vm: MainViewModel,
+    mode: Int,
+    onMode: (Int) -> Unit,
+    video: VideoState?,
+    onClose: () -> Unit,
+    onPickPlaylist: (Track) -> Unit,
+    onOpenEq: () -> Unit,
+    onFullLyrics: () -> Unit,
+    onVideoFull: () -> Unit,
+) {
     val now by vm.now.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val prog by vm.downloading.collectAsStateWithLifecycle()
     val t = now.track
     var drag by remember { mutableStateOf<Float?>(null) }
-    var showLyrics by remember { mutableStateOf(false) }
-    if (showLyrics) KeepScreenOn()
+    val vOn = video != null && mode == 2
+    if (mode != 0) KeepScreenOn()
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val mixState by vm.mixBus.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -117,9 +128,12 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
         val liked = lib.liked.any { it.id == t.id }
         val downloaded = lib.downloads.any { it.id == t.id }
         val percent = prog[t.id]
-        val dur = now.durationMs.coerceAtLeast(1L)
-        val frac = drag ?: (now.positionMs.toFloat() / dur).coerceIn(0f, 1f)
-        val shownMs = if (drag != null) (drag!! * dur).toLong() else now.positionMs
+        val curPos = if (vOn) video!!.pos else now.positionMs
+        val dur = (if (vOn && video!!.dur > 0) video.dur else now.durationMs).coerceAtLeast(1L)
+        val frac = drag ?: (curPos.toFloat() / dur).coerceIn(0f, 1f)
+        val shownMs = if (drag != null) (drag!! * dur).toLong() else curPos
+        val isPlayingNow = if (vOn) video!!.playing else now.isPlaying
+        val isBufferingNow = if (vOn) (video!!.loading || video.buffering) else now.buffering
 
         Column(
             Modifier
@@ -140,16 +154,23 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                 IconButton(onClick = onClose) {
                     Icon(Icons.Rounded.KeyboardArrowDown, "Cerrar", tint = Color.White, modifier = Modifier.size(32.dp))
                 }
-                Text(
-                    "Reproduciendo ahora",
-                    modifier = Modifier.weight(1f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Pal.Dim,
-                )
-                Spacer(Modifier.size(48.dp))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    ModeToggle(mode, onMode)
+                }
+                if (mode == 1) {
+                    IconButton(onClick = onFullLyrics) {
+                        Icon(Icons.Rounded.Fullscreen, "Letra a pantalla completa", tint = Color.White)
+                    }
+                } else if (mode == 2) {
+                    IconButton(onClick = onVideoFull) {
+                        Icon(Icons.Rounded.Fullscreen, "Video a pantalla completa", tint = Color.White)
+                    }
+                } else {
+                    Spacer(Modifier.size(48.dp))
+                }
             }
 
-            if (showLyrics) {
+            if (mode == 1) {
                 Spacer(Modifier.height(6.dp))
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LyricsPanel(
@@ -158,11 +179,18 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                         positionMs = now.positionMs,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    IconButton(onClick = onFullLyrics, modifier = Modifier.align(Alignment.TopEnd)) {
-                        Icon(Icons.Rounded.Fullscreen, "Letra a pantalla completa", tint = Color.White)
-                    }
                 }
                 Spacer(Modifier.height(10.dp))
+            } else if (mode == 2) {
+                Spacer(Modifier.weight(0.5f))
+                if (video != null) {
+                    VideoInline(vm, video, onFullscreen = onVideoFull)
+                } else {
+                    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Pal.Green, strokeWidth = 3.dp, modifier = Modifier.size(36.dp))
+                    }
+                }
+                Spacer(Modifier.weight(0.5f))
             } else {
                 Spacer(Modifier.weight(0.4f))
 
@@ -228,7 +256,10 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                 value = frac,
                 onValueChange = { drag = it },
                 onValueChangeFinished = {
-                    drag?.let { vm.seekTo((it * dur).toLong()) }
+                    drag?.let { f ->
+                        val ms = (f * dur).toLong()
+                        if (vOn) video!!.seekTo(ms) else vm.seekTo(ms)
+                    }
                     drag = null
                 },
                 colors = SliderDefaults.colors(
@@ -260,15 +291,15 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                         .size(72.dp)
                         .clip(CircleShape)
                         .background(Color.White)
-                        .clickable { vm.togglePlay() },
+                        .clickable { if (vOn) video!!.togglePlay() else vm.togglePlay() },
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (now.buffering && !now.isPlaying) {
+                    if (isBufferingNow && !isPlayingNow) {
                         CircularProgressIndicator(color = Color.Black, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
                     } else {
                         Icon(
-                            if (now.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            if (now.isPlaying) "Pausa" else "Reproducir",
+                            if (isPlayingNow) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            if (isPlayingNow) "Pausa" else "Reproducir",
                             tint = Color.Black, modifier = Modifier.size(42.dp),
                         )
                     }
@@ -290,33 +321,17 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 GlassPill(
                     modifier = Modifier.weight(1f),
-                    label = "Letra",
-                    active = showLyrics,
-                    onClick = { showLyrics = !showLyrics },
-                    icon = { Icon(Icons.Rounded.Lyrics, null, tint = if (showLyrics) Pal.Green else Color.White) },
-                )
-                GlassPill(
-                    modifier = Modifier.weight(1f),
                     label = if (mixOn) "Mix DJ: sí" else "Mix DJ",
                     active = mixOn,
                     onClick = { vm.setMix(!mixOn) },
                     icon = { Icon(Icons.Rounded.GraphicEq, null, tint = if (mixOn) Pal.Green else Color.White) },
                 )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 GlassPill(
                     modifier = Modifier.weight(1f),
                     label = if (eqOn) "Ecualizador: sí" else "Ecualizador",
                     active = eqOn,
                     onClick = onOpenEq,
                     icon = { Icon(Icons.Rounded.Tune, null, tint = if (eqOn) Pal.Green else Color.White) },
-                )
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = "Playlist",
-                    onClick = { onPickPlaylist(t) },
-                    icon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White) },
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -339,12 +354,41 @@ fun PlayerScreen(vm: MainViewModel, onClose: () -> Unit, onPickPlaylist: (Track)
                 )
                 GlassPill(
                     modifier = Modifier.weight(1f),
-                    label = "Ver video",
-                    onClick = onWatchVideo,
-                    icon = { Icon(Icons.Rounded.Videocam, null, tint = Color.White) },
+                    label = "Playlist",
+                    onClick = { onPickPlaylist(t) },
+                    icon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White) },
                 )
             }
             Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun ModeToggle(mode: Int, onMode: (Int) -> Unit) {
+    val items = listOf(
+        Icons.Rounded.Headphones to "Carátula",
+        Icons.Rounded.Lyrics to "Letra",
+        Icons.Rounded.Videocam to "Video",
+    )
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.12f))
+            .padding(3.dp),
+    ) {
+        items.forEachIndexed { i, (ic, label) ->
+            val sel = i == mode
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (sel) Color.White.copy(alpha = 0.92f) else Color.Transparent)
+                    .tvClickable(RoundedCornerShape(50)) { onMode(i) }
+                    .padding(horizontal = 18.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(ic, label, tint = if (sel) Color.Black else Color.White, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
