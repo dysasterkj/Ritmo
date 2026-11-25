@@ -353,7 +353,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             .map { c.getMediaItemAt(it).mediaId }
             .filter { Library.localFile(it) == null }
         if (ids.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) { ids.forEach { YouTube.prefetch(it) } }
+        ids.forEach { YouTube.prefetch(it) }
     }
 
     fun togglePlay() {
@@ -418,7 +418,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 val r = YouTube.search(q, 25, maxSec = 4 * 3600)
                 // Precarga las primeras para que suenen casi al instante al tocarlas
-                viewModelScope.launch(Dispatchers.IO) { r.take(3).forEach { YouTube.prefetch(it.id) } }
+                r.take(3).forEach { YouTube.prefetch(it.id) }
                 _search.value = SearchState(
                     query = q, done = true, results = r,
                     error = if (r.isEmpty()) "No encontré resultados para “$q”" else null,

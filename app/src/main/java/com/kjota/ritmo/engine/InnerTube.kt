@@ -33,7 +33,12 @@ object InnerTube {
             status = "ok (${System.currentTimeMillis() - t0} ms)"
         } else {
             status = "falló: ${r.second}"
-            if (++fails >= 2) { pausedUntil = System.currentTimeMillis() + 10 * 60 * 1000; fails = 0 }
+            // LOGIN_REQUIRED = YouTube pide verificación en esta red: no tiene sentido insistir en un buen rato
+            if (r.second.contains("LOGIN_REQUIRED")) {
+                pausedUntil = System.currentTimeMillis() + 6 * 60 * 60 * 1000
+            } else if (++fails >= 2) {
+                pausedUntil = System.currentTimeMillis() + 10 * 60 * 1000; fails = 0
+            }
         }
         return r.first
     }

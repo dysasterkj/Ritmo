@@ -113,7 +113,10 @@ object YouTube {
             req.addOption("-g")
             req.addOption("--no-playlist")
             req.addOption("--no-warnings")
-            req.addOption("--socket-timeout", 20)
+            // Menos descargas por canción: sin manifiestos DASH/HLS ni subtítulos (solo se necesita el audio)
+            req.addOption("--extractor-args", "youtube:skip=dash,hls,translated_subs")
+            req.addOption("--no-write-subs")
+            req.addOption("--socket-timeout", 15)
             val out = YoutubeDL.getInstance().execute(req, null, null).out
             val url = out.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("http") }
                 ?: throw IllegalStateException("No se encontró el audio")
@@ -156,8 +159,14 @@ object YouTube {
         urls[0] to urls.getOrNull(1)
     }
 
-    /** Resuelve la siguiente canción con anticipación para que el cambio sea instantáneo. */
+    // Precarga de a UNA a la vez (varios yt-dlp en paralelo harían todo más lento)
+    private val prefetcher = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ritmo-prefetch").apply { isDaemon = true }
+    }
+
+    /** Resuelve canciones con anticipación, en orden, para que suenen casi al instante al tocarlas. */
     fun prefetch(id: String) {
-        try { streamUrl(id, quickOnly = true) } catch (_: Throwable) { }
+        if (fresh(id) != null) return
+        prefetcher.execute { try { streamUrl(id) } catch (_: Throwable) { } }
     }
 }
