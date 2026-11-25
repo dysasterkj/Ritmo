@@ -203,10 +203,14 @@ object YouTube {
         Thread(r, "ritmo-prefetch").apply { isDaemon = true }
     }
 
+    private val inflight = ConcurrentHashMap.newKeySet<String>()
+
     /** Prioridad máxima (la siguiente canción): sin esperar la fila de precarga. */
     fun prefetchNow(id: String) {
-        if (fresh(id) != null) return
-        Thread({ try { streamUrl(id) } catch (_: Throwable) { } }, "ritmo-prefetch-now").apply { isDaemon = true }.start()
+        if (fresh(id) != null || !inflight.add(id)) return
+        Thread({
+            try { streamUrl(id) } catch (_: Throwable) { } finally { inflight.remove(id) }
+        }, "ritmo-prefetch-now").apply { isDaemon = true }.start()
     }
 
     /** Resuelve canciones con anticipación, en orden, para que suenen casi al instante al tocarlas. */
