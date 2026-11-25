@@ -305,6 +305,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         c.play()
     }
 
+    /** Desde la búsqueda: suena solo la elegida y sigue el mix de YouTube (parecidas, otros artistas, versiones). */
+    fun playFromSearch(t: Track) {
+        play(listOf(t), 0, radio = true)
+        maybeExtendWithRadio()
+    }
+
+    private fun titleKey(t: String): String =
+        t.lowercase().replace(Regex("[\\(\\[].*?[\\)\\]]"), "").replace(Regex("[^\\p{L}\\p{N}]"), "")
+
     private fun maybeExtendWithRadio() {
         val c = controller ?: return
         if (!radioEnabled) return
@@ -318,7 +327,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val cc = controller ?: return@launch
                 val have = HashSet<String>()
                 for (i in 0 until cc.mediaItemCount) have.add(cc.getMediaItemAt(i).mediaId)
-                val fresh = more.filter { have.add(it.id) }
+                // Evita llenar la cola con la misma canción repetida: máximo una variante extra del mismo título
+                val seen = HashMap<String, Int>()
+                seen[titleKey(current.title)] = 1
+                val fresh = more.filter { have.add(it.id) }.filter {
+                    val k = titleKey(it.title)
+                    val n = seen.getOrDefault(k, 0)
+                    seen[k] = n + 1
+                    n < 2
+                }
                 if (fresh.isNotEmpty()) cc.addMediaItems(fresh.map { it.toMediaItem() })
             } catch (_: Throwable) {
                 radioFor = null

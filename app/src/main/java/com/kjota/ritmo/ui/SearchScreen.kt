@@ -111,7 +111,7 @@ fun SearchScreen(
             st.done && st.results.isNotEmpty() -> {
                 itemsIndexed(st.results, key = { _, t -> t.id }) { i, t ->
                     VideoCard(
-                        t, vm, onClick = { vm.play(st.results, i) }, onPickPlaylist = onPickPlaylist,
+                        t, vm, onClick = { vm.playFromSearch(t) }, onPickPlaylist = onPickPlaylist,
                         isCurrent = t.id == currentId,
                         modifier = Modifier.padding(bottom = 10.dp),
                     )

@@ -355,7 +355,7 @@ private fun TvSearch(vm: MainViewModel, currentId: String?, onPick: (Track) -> U
             st.done && st.results.isNotEmpty() -> {
                 itemsIndexed(st.results, key = { _, t -> t.id }) { i, t ->
                     VideoCard(
-                        t, vm, onClick = { vm.play(st.results, i) }, onPickPlaylist = onPick,
+                        t, vm, onClick = { vm.playFromSearch(t) }, onPickPlaylist = onPick,
                         isCurrent = t.id == currentId, tv = true,
                     )
                 }
