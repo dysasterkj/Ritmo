@@ -79,7 +79,7 @@ class PlaybackService : MediaSessionService() {
         Library.init(this)
 
         val http = DefaultHttpDataSource.Factory()
-            .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0 Mobile Safari/537.36")
+            .setUserAgent(com.kjota.ritmo.engine.InnerTube.PLAYER_UA)
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(15_000)
             .setReadTimeoutMs(20_000)
@@ -116,7 +116,7 @@ class PlaybackService : MediaSessionService() {
 
     private fun buildPlayer(resolving: DataSource.Factory, mainPlayer: Boolean): ExoPlayer {
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 120_000, 2_000, 4_000)
+            .setBufferDurationsMs(30_000, 120_000, 700, 2_500)
             .build()
         return ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolving))

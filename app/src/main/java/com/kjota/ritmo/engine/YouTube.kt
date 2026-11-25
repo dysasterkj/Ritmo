@@ -93,21 +93,37 @@ object YouTube {
     }
 
     /** Dirección directa del audio (bloqueante: se llama desde el hilo de carga del reproductor). */
+    private val locks = ConcurrentHashMap<String, Any>()
+
     fun streamUrl(id: String): String {
-        val c = urlCache[id]
-        if (c != null && System.currentTimeMillis() - c.at < URL_TTL_MS) return c.url
-        runBlocking { Engine.awaitReady() }
-        val req = YoutubeDLRequest("$WATCH$id")
-        req.addOption("-f", "bestaudio/best")
-        req.addOption("-g")
-        req.addOption("--no-playlist")
-        req.addOption("--no-warnings")
-        req.addOption("--socket-timeout", 20)
-        val out = YoutubeDL.getInstance().execute(req, null, null).out
-        val url = out.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("http") }
-            ?: throw IllegalStateException("No se encontró el audio")
-        urlCache[id] = Cached(url, System.currentTimeMillis())
-        return url
+        fresh(id)?.let { return it }
+        // Un solo cálculo por canción: si ya se está resolviendo (precarga), se espera ese resultado.
+        synchronized(locks.getOrPut(id) { Any() }) {
+            fresh(id)?.let { return it }
+            // 1) Rápido: petición directa (sin Python). 2) Respaldo: yt-dlp.
+            val quick = InnerTube.audioUrl(id)
+            if (quick != null) {
+                urlCache[id] = Cached(quick, System.currentTimeMillis())
+                return quick
+            }
+            runBlocking { Engine.awaitReady() }
+            val req = YoutubeDLRequest("$WATCH$id")
+            req.addOption("-f", "bestaudio/best")
+            req.addOption("-g")
+            req.addOption("--no-playlist")
+            req.addOption("--no-warnings")
+            req.addOption("--socket-timeout", 20)
+            val out = YoutubeDL.getInstance().execute(req, null, null).out
+            val url = out.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("http") }
+                ?: throw IllegalStateException("No se encontró el audio")
+            urlCache[id] = Cached(url, System.currentTimeMillis())
+            return url
+        }
+    }
+
+    private fun fresh(id: String): String? {
+        val c = urlCache[id] ?: return null
+        return if (System.currentTimeMillis() - c.at < URL_TTL_MS) c.url else null
     }
 
     private class CachedVideo(val video: String, val audio: String?, val at: Long)
