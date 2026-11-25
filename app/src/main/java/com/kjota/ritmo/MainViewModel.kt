@@ -347,16 +347,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun prefetchNext() {
         val c = controller ?: return
         val i = c.currentMediaItemIndex
-        if (i + 1 >= c.mediaItemCount) return
-        val id = c.getMediaItemAt(i + 1).mediaId
-        if (Library.localFile(id) != null) return
-        viewModelScope.launch(Dispatchers.IO) {
-            YouTube.prefetch(id)
-            if (i + 2 < c.mediaItemCount) {
-                val id2 = withContext(Dispatchers.Main) { controller?.getMediaItemAt(i + 2)?.mediaId }
-                if (id2 != null && Library.localFile(id2) == null) YouTube.prefetch(id2)
-            }
-        }
+        // El controlador solo se toca en el hilo principal: aquí se leen los ids y luego se precargan en segundo plano.
+        val ids = listOf(i + 1, i + 2)
+            .filter { it < c.mediaItemCount }
+            .map { c.getMediaItemAt(it).mediaId }
+            .filter { Library.localFile(it) == null }
+        if (ids.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) { ids.forEach { YouTube.prefetch(it) } }
     }
 
     fun togglePlay() {
@@ -421,7 +418,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             try {
                 val r = YouTube.search(q, 25, maxSec = 4 * 3600)
                 // Precarga las primeras para que suenen casi al instante al tocarlas
-                viewModelScope.launch(Dispatchers.IO) { r.take(4).forEach { YouTube.prefetch(it.id) } }
+                viewModelScope.launch(Dispatchers.IO) { r.take(3).forEach { YouTube.prefetch(it.id) } }
                 _search.value = SearchState(
                     query = q, done = true, results = r,
                     error = if (r.isEmpty()) "No encontré resultados para “$q”" else null,

@@ -140,7 +140,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             }
         }
 
-        SettingsCard("Motor de YouTube", "yt-dlp: ${version ?: "iniciando…"}") {
+        SettingsCard("Motor de YouTube", "yt-dlp: ${version ?: "iniciando…"} · ruta rápida: ${com.kjota.ritmo.engine.InnerTube.status}") {
             Text(
                 "Si las búsquedas, los videos o la reproducción fallan, actualiza el motor: YouTube cambia seguido.",
                 color = Pal.Dim, fontSize = 13.sp,

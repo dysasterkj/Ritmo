@@ -95,7 +95,7 @@ object YouTube {
     /** Dirección directa del audio (bloqueante: se llama desde el hilo de carga del reproductor). */
     private val locks = ConcurrentHashMap<String, Any>()
 
-    fun streamUrl(id: String): String {
+    fun streamUrl(id: String, quickOnly: Boolean = false): String {
         fresh(id)?.let { return it }
         // Un solo cálculo por canción: si ya se está resolviendo (precarga), se espera ese resultado.
         synchronized(locks.getOrPut(id) { Any() }) {
@@ -106,6 +106,7 @@ object YouTube {
                 urlCache[id] = Cached(quick, System.currentTimeMillis())
                 return quick
             }
+            if (quickOnly) throw IllegalStateException("sin ruta rápida")
             runBlocking { Engine.awaitReady() }
             val req = YoutubeDLRequest("$WATCH$id")
             req.addOption("-f", "bestaudio/best")
@@ -157,6 +158,6 @@ object YouTube {
 
     /** Resuelve la siguiente canción con anticipación para que el cambio sea instantáneo. */
     fun prefetch(id: String) {
-        try { streamUrl(id) } catch (_: Throwable) { }
+        try { streamUrl(id, quickOnly = true) } catch (_: Throwable) { }
     }
 }
