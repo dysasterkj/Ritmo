@@ -17,8 +17,47 @@ object YouTube {
     private const val WATCH = "https://www.youtube.com/watch?v="
     private const val URL_TTL_MS = 3L * 60 * 60 * 1000
 
-    private class Cached(val url: String, val at: Long)
+    /** [exp]: hasta cuándo sirve la dirección (YouTube las vence a las ~6 h). */
+    private class Cached(val url: String, val exp: Long)
     private val urlCache = ConcurrentHashMap<String, Cached>()
+    private var cacheFile: java.io.File? = null
+
+    /** Las direcciones se guardan en disco: al reabrir la app lo escuchado hace poco sigue listo. */
+    fun init(ctx: android.content.Context) {
+        val f = java.io.File(ctx.applicationContext.filesDir, "urlcache.json")
+        cacheFile = f
+        try {
+            if (f.exists()) {
+                val o = JSONObject(f.readText())
+                val now = System.currentTimeMillis()
+                o.keys().forEach { id ->
+                    val e = o.getJSONObject(id)
+                    if (e.getLong("exp") > now) urlCache[id] = Cached(e.getString("url"), e.getLong("exp"))
+                }
+            }
+        } catch (_: Throwable) { }
+    }
+
+    private fun expiryOf(url: String): Long {
+        val now = System.currentTimeMillis()
+        val sec = Regex("[?&]expire=(\\d+)").find(url)?.groupValues?.get(1)?.toLongOrNull()
+        // Sirve hasta que YouTube la venza (menos 10 min de margen), con tope de 24 h
+        val byUrl = if (sec != null) sec * 1000 - 10 * 60 * 1000 else now + 3L * 60 * 60 * 1000
+        return minOf(byUrl, now + 24L * 60 * 60 * 1000)
+    }
+
+    @Synchronized
+    private fun remember(id: String, url: String) {
+        urlCache[id] = Cached(url, expiryOf(url))
+        val f = cacheFile ?: return
+        try {
+            val now = System.currentTimeMillis()
+            val live = urlCache.entries.filter { it.value.exp > now }.sortedByDescending { it.value.exp }.take(400)
+            val o = JSONObject()
+            live.forEach { o.put(it.key, JSONObject().put("url", it.value.url).put("exp", it.value.exp)) }
+            f.writeText(o.toString())
+        } catch (_: Throwable) { }
+    }
 
     suspend fun search(query: String, count: Int = 25, maxSec: Int = 25 * 60): List<Track> = withContext(Dispatchers.IO) {
         Engine.awaitReady()
@@ -103,7 +142,7 @@ object YouTube {
             // 1) Rápido: petición directa (sin Python). 2) Respaldo: yt-dlp.
             val quick = InnerTube.audioUrl(id)
             if (quick != null) {
-                urlCache[id] = Cached(quick, System.currentTimeMillis())
+                remember(id, quick)
                 return quick
             }
             if (quickOnly) throw IllegalStateException("sin ruta rápida")
@@ -120,14 +159,14 @@ object YouTube {
             val out = YoutubeDL.getInstance().execute(req, null, null).out
             val url = out.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("http") }
                 ?: throw IllegalStateException("No se encontró el audio")
-            urlCache[id] = Cached(url, System.currentTimeMillis())
+            remember(id, url)
             return url
         }
     }
 
     private fun fresh(id: String): String? {
         val c = urlCache[id] ?: return null
-        return if (System.currentTimeMillis() - c.at < URL_TTL_MS) c.url else null
+        return if (System.currentTimeMillis() < c.exp) c.url else null
     }
 
     private class CachedVideo(val video: String, val audio: String?, val at: Long)

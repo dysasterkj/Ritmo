@@ -38,6 +38,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
     val lib by vm.lib.collectAsStateWithLifecycle()
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val carOn by vm.carMode.collectAsStateWithLifecycle()
+    val autoDlOn by vm.autoDl.collectAsStateWithLifecycle()
     val mixSec by vm.mixSec.collectAsStateWithLifecycle()
     val curve by vm.mixCurve.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -103,6 +104,13 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             )
             GreenPill("Abrir Accesibilidad") {
                 ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
+
+        SettingsCard("Descarga automática", "Guarda tus favoritas y lo último que escuchas (solo con Wi-Fi, hasta 150 canciones) para que suenen al instante.") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Descargar automáticamente", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = autoDlOn, onCheckedChange = { vm.setAutoDl(it) }, colors = switchColors())
             }
         }
 

@@ -11,6 +11,7 @@ class RitmoApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         Library.init(this)
+        com.kjota.ritmo.engine.YouTube.init(this)
         Engine.start(this)
     }
 

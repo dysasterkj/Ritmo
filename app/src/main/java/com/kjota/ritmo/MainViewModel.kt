@@ -174,6 +174,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _mixOn = MutableStateFlow(Prefs.getLong(app, "mix_on", 0L) == 1L)
     val mixOn: StateFlow<Boolean> = _mixOn.asStateFlow()
 
+    private val _autoDl = MutableStateFlow(Prefs.getLong(app, "auto_dl", 1L) == 1L)
+    val autoDl: StateFlow<Boolean> = _autoDl.asStateFlow()
+
     private val _carMode = MutableStateFlow(Prefs.getLong(app, "car_mode", 0L) == 1L)
     val carMode: StateFlow<Boolean> = _carMode.asStateFlow()
 
@@ -244,6 +247,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         connect()
         loadShelves()
         startPositionTicker()
+        startBackgroundPrep()
     }
 
     // ------------------------------------------------------------------ Reproductor
@@ -501,7 +505,54 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ Biblioteca
 
-    fun toggleLike(t: Track) = Library.toggleLike(t)
+    fun toggleLike(t: Track) {
+        Library.toggleLike(t)
+        autoDownload()
+    }
+
+    fun setAutoDl(on: Boolean) {
+        Prefs.putLong(app, "auto_dl", if (on) 1L else 0L)
+        _autoDl.value = on
+        if (on) autoDownload()
+    }
+
+    /** Descarga sola las favoritas y lo último escuchado (con Wi-Fi, hasta 150 canciones) para que suenen al instante. */
+    fun autoDownload() {
+        if (!_autoDl.value) return
+        try {
+            val cm = app.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            if (cm.isActiveNetworkMetered) return
+        } catch (_: Throwable) { return }
+        val s = Library.state.value
+        val busy = Downloads.progress.value.keys
+        val have = s.downloads.map { it.id }.toHashSet()
+        val slots = 150 - s.downloads.size
+        if (slots <= 0) return
+        val todo = (s.liked + s.recent.take(30)).distinctBy { it.id }
+            .filter { it.id !in have && it.id !in busy }
+            .take(minOf(slots, 10))
+        if (todo.isNotEmpty()) Downloads.enqueue(app, *todo.toTypedArray())
+    }
+
+    /** Preparación en segundo plano: direcciones de las primeras canciones de Inicio y descargas automáticas. */
+    private fun startBackgroundPrep() {
+        viewModelScope.launch {
+            _shelvesLoading.collect { loading ->
+                if (!loading) {
+                    val ids = Library.state.value.recent.take(2).map { it.id } +
+                        _shelves.value.take(5).flatMap { it.tracks.take(2) }.map { it.id }
+                    ids.distinct().filter { Library.localFile(it) == null }.forEach { YouTube.prefetch(it) }
+                }
+            }
+        }
+        viewModelScope.launch {
+            delay(30_000)
+            while (true) {
+                autoDownload()
+                delay(10 * 60 * 1000L)
+            }
+        }
+    }
 
     fun download(vararg t: Track) {
         val n = Downloads.enqueue(app, *t)
