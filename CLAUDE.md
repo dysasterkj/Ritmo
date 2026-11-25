@@ -48,5 +48,8 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 ## Modo auto
 `ui/CarScreen.kt`: pref `car_mode` (Ajustes o icono en Inicio); MainActivity muestra CarScreen en lugar de RitmoRoot. Horizontal forzado, botones grandes, se adapta a media pantalla (split con Waze). Botón Waze usa FLAG_ACTIVITY_LAUNCH_ADJACENT (solo sirve si ya está en pantalla dividida). TV: `ui/TvScreens.kt` (TvRoot) cuando `isTv()`.
 
+## Widgets
+`widget/Widgets.kt`: 3 tamaños (Small 2x1, Medium 4x2, Large 4x4) con RemoteViews; `WidgetUpdater` se alimenta desde PlaybackService (onEvents) y `WidgetReceiver` controla el reproductor con MediaController (play/pausa, siguiente, anterior, favorita, Favoritas, Recientes).
+
 ## Ideas pendientes
 Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.

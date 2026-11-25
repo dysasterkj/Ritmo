@@ -78,6 +78,44 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <receiver
+            android:name=".widget.RitmoWidgetSmall"
+            android:exported="false"
+            android:label="Ritmo · Pequeño">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_small_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.RitmoWidgetMedium"
+            android:exported="false"
+            android:label="Ritmo · Mediano">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_medium_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.RitmoWidgetLarge"
+            android:exported="false"
+            android:label="Ritmo · Grande">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_large_info" />
+        </receiver>
+
+        <receiver android:name=".widget.WidgetReceiver" android:exported="false" />
+
         <!-- Para instalar las actualizaciones descargadas desde la propia app -->
         <provider
             android:name="androidx.core.content.FileProvider"

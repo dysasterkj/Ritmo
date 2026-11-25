@@ -203,6 +203,12 @@ object YouTube {
         Thread(r, "ritmo-prefetch").apply { isDaemon = true }
     }
 
+    /** Prioridad máxima (la siguiente canción): sin esperar la fila de precarga. */
+    fun prefetchNow(id: String) {
+        if (fresh(id) != null) return
+        Thread({ try { streamUrl(id) } catch (_: Throwable) { } }, "ritmo-prefetch-now").apply { isDaemon = true }.start()
+    }
+
     /** Resuelve canciones con anticipación, en orden, para que suenen casi al instante al tocarlas. */
     fun prefetch(id: String) {
         if (fresh(id) != null) return

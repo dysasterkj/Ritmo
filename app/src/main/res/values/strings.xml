@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Ritmo</string>
     <string name="car_split_desc">Solo se usa para dividir la pantalla (Ritmo arriba/izquierda y Waze al lado) cuando activas el modo auto. No lee ni guarda nada de tu pantalla.</string>
+    <string name="widget_small_desc">Pequeño: portada, título y reproducir/pausar</string>
+    <string name="widget_medium_desc">Mediano: controles completos y favorita</string>
+    <string name="widget_large_desc">Grande: portada grande, controles y accesos a Favoritas y Recientes</string>
 </resources>

@@ -357,7 +357,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             .map { c.getMediaItemAt(it).mediaId }
             .filter { Library.localFile(it) == null }
         if (ids.isEmpty()) return
-        ids.forEach { YouTube.prefetch(it) }
+        ids.forEach { YouTube.prefetchNow(it) }
     }
 
     fun togglePlay() {
@@ -507,6 +507,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun toggleLike(t: Track) {
         Library.toggleLike(t)
+        com.kjota.ritmo.widget.WidgetUpdater.refresh(app)
         autoDownload()
     }
 

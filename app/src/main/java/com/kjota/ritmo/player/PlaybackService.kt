@@ -108,6 +108,17 @@ class PlaybackService : MediaSessionService() {
             }
         })
 
+        player.addListener(object : Player.Listener {
+            override fun onEvents(p: Player, events: Player.Events) {
+                if (events.containsAny(
+                        Player.EVENT_MEDIA_ITEM_TRANSITION,
+                        Player.EVENT_IS_PLAYING_CHANGED,
+                        Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    )
+                ) com.kjota.ritmo.widget.WidgetUpdater.fromPlayer(this@PlaybackService, p)
+            }
+        })
+
         session = MediaSession.Builder(this, player).build()
 
         ticking = true
@@ -115,8 +126,14 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun buildPlayer(resolving: DataSource.Factory, mainPlayer: Boolean): ExoPlayer {
+        // La "cola" solo suena unos segundos: poco búfer = menos datos en paralelo durante la mezcla.
         val load = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(30_000, 120_000, 700, 2_500)
+            .setBufferDurationsMs(
+                if (mainPlayer) 30_000 else 12_000,
+                if (mainPlayer) 120_000 else 25_000,
+                if (mainPlayer) 700 else 500,
+                if (mainPlayer) 2_500 else 1_500,
+            )
             .build()
         return ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(resolving))
@@ -134,6 +151,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     // ------------------------------------------------------------------ Mix DJ
+
+    private var tailStallSince = 0L
 
     private fun mixEnabled() = Prefs.getLong(this, "mix_on", 0L) == 1L
 
@@ -169,6 +188,8 @@ class PlaybackService : MediaSessionService() {
             return
         }
         val id = p.currentMediaItem?.mediaId ?: return
+        // La siguiente canción debe tener su dirección lista ANTES de la mezcla, o habría un hueco de silencio.
+        if (p.hasNextMediaItem()) YouTube.prefetchNow(p.getMediaItemAt(p.nextMediaItemIndex).mediaId)
         ensurePreroll(p, id)
         if (remaining in 2_500L..(fade + GRACE_MS) && prerollReady(p, id)) {
             startMix(fade, remaining)
@@ -194,7 +215,7 @@ class PlaybackService : MediaSessionService() {
         if (tail.playWhenReady != p.playWhenReady) tail.playWhenReady = p.playWhenReady
         if (tail.playbackState == Player.STATE_READY && tail.isPlaying && p.isPlaying) {
             val drift = tail.currentPosition - p.currentPosition
-            if (abs(drift) > 150L && now - lastSeekAt > 900L) {
+            if (abs(drift) > 300L && now - lastSeekAt > 2_500L) {
                 tail.seekTo(p.currentPosition + 80L)
                 lastSeekAt = now
             }
@@ -251,10 +272,16 @@ class PlaybackService : MediaSessionService() {
         tail.volume = gout
         MixBus.state.value = MixBus.state.value.copy(progress = x)
         val tailDead = tail.playbackState == Player.STATE_ENDED || tail.playbackState == Player.STATE_IDLE
-        if (x >= 1f || tailDead) endMix()
+        // Si la canción que sale se trabó (cargando), se corta la mezcla y sigue solo la nueva: mejor eso que sonar entrecortado.
+        if (tail.playbackState == Player.STATE_BUFFERING) {
+            if (tailStallSince == 0L) tailStallSince = now
+        } else tailStallSince = 0L
+        val tailStalled = tailStallSince != 0L && now - tailStallSince > 600L
+        if (x >= 1f || tailDead || tailStalled) endMix()
     }
 
     private fun endMix() {
+        tailStallSince = 0L
         inMix = false
         expectTransition = false
         mixElapsed = 0L

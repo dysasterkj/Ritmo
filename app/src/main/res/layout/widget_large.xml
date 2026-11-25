@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_bg" android:orientation="vertical" android:padding="12dp">
+    <ImageView android:id="@+id/w_cover" android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1" android:scaleType="centerCrop" android:src="@drawable/ic_w_note" />
+    <TextView android:id="@+id/w_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:textColor="#FFFFFFFF" android:textSize="16sp" android:textStyle="bold"
+        android:singleLine="true" android:ellipsize="end" />
+    <TextView android:id="@+id/w_artist" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#B3FFFFFF" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center">
+        <ImageButton android:id="@+id/w_like" android:layout_width="42dp" android:layout_height="42dp"
+            android:background="@drawable/widget_btn" android:src="@drawable/ic_w_heart" android:padding="9dp"
+            android:contentDescription="Favorita" />
+        <ImageButton android:id="@+id/w_prev" android:layout_width="42dp" android:layout_height="42dp"
+            android:layout_marginStart="12dp" android:background="@drawable/widget_btn"
+            android:src="@drawable/ic_w_prev" android:padding="9dp" android:contentDescription="Anterior" />
+        <ImageButton android:id="@+id/w_play" android:layout_width="54dp" android:layout_height="54dp"
+            android:layout_marginStart="12dp" android:background="@drawable/widget_btn_main"
+            android:src="@drawable/ic_w_play" android:padding="12dp" android:contentDescription="Reproducir o pausar" />
+        <ImageButton android:id="@+id/w_next" android:layout_width="42dp" android:layout_height="42dp"
+            android:layout_marginStart="12dp" android:background="@drawable/widget_btn"
+            android:src="@drawable/ic_w_next" android:padding="9dp" android:contentDescription="Siguiente" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:orientation="horizontal">
+        <TextView android:id="@+id/w_btn_liked" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:background="@drawable/widget_pill" android:gravity="center"
+            android:paddingTop="9dp" android:paddingBottom="9dp" android:text="❤ Favoritas"
+            android:textColor="#FFFFFFFF" android:textSize="12sp" android:textStyle="bold" />
+        <TextView android:id="@+id/w_btn_recent" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="6dp" android:background="@drawable/widget_pill"
+            android:gravity="center" android:paddingTop="9dp" android:paddingBottom="9dp" android:text="🕘 Recientes"
+            android:textColor="#FFFFFFFF" android:textSize="12sp" android:textStyle="bold" />
+        <TextView android:id="@+id/w_btn_open" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="6dp" android:background="@drawable/widget_pill"
+            android:gravity="center" android:paddingTop="9dp" android:paddingBottom="9dp" android:text="🔍 Buscar"
+            android:textColor="#FFFFFFFF" android:textSize="12sp" android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>
