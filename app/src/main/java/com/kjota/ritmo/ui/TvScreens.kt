@@ -322,6 +322,13 @@ private fun TvShelf(
 private fun TvSearch(vm: MainViewModel, currentId: String?, onPick: (Track) -> Unit) {
     val st by vm.search.collectAsStateWithLifecycle()
     var text by remember { mutableStateOf(st.query) }
+    var typing by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(text, typing) {
+        if (!typing || text.isBlank()) { suggestions = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(180)
+        suggestions = com.kjota.ritmo.engine.Suggest.forQuery(text)
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -333,12 +340,17 @@ private fun TvSearch(vm: MainViewModel, currentId: String?, onPick: (Track) -> U
         item(span = { GridItemSpan(maxLineSpan) }) {
             GlassSearchField(
                 value = text,
-                onValueChange = { text = it },
-                onSearch = { vm.search(text) },
-                onClear = { text = ""; vm.clearSearch() },
+                onValueChange = { text = it; typing = true },
+                onSearch = { typing = false; vm.search(text) },
+                onClear = { text = ""; typing = false; vm.clearSearch() },
             )
         }
         when {
+            typing && suggestions.isNotEmpty() -> {
+                items(suggestions, span = { GridItemSpan(maxLineSpan) }) { sug ->
+                    SuggestionRow(sug, onPick = { text = sug; typing = false; vm.search(sug) }, onFill = { text = sug })
+                }
+            }
             st.loading -> item(span = { GridItemSpan(maxLineSpan) }) { Loader() }
             st.done && st.results.isNotEmpty() -> {
                 itemsIndexed(st.results, key = { _, t -> t.id }) { i, t ->
@@ -361,7 +373,7 @@ private fun TvSearch(vm: MainViewModel, currentId: String?, onPick: (Track) -> U
                             .fillMaxWidth()
                             .height(96.dp)
                             .glass(RoundedCornerShape(18.dp), tint = g.color, strength = 2.2f)
-                            .tvClickable(RoundedCornerShape(18.dp)) { text = g.name; vm.search(g.query) }
+                            .tvClickable(RoundedCornerShape(18.dp)) { text = g.name; typing = false; vm.search(g.query) }
                             .padding(18.dp),
                     ) {
                         Text(g.name, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Color.White)

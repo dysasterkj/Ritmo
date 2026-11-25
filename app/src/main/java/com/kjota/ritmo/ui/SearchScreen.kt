@@ -18,6 +18,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.NorthWest
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import com.kjota.ritmo.engine.Suggest
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,7 +71,14 @@ fun SearchScreen(
 ) {
     val st by vm.search.collectAsStateWithLifecycle()
     var text by remember { mutableStateOf(st.query) }
+    var typing by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     val focus = LocalFocusManager.current
+    LaunchedEffect(text, typing) {
+        if (!typing || text.isBlank()) { suggestions = emptyList(); return@LaunchedEffect }
+        delay(180)
+        suggestions = Suggest.forQuery(text)
+    }
 
     LazyColumn(
         modifier = Modifier.statusBarsPadding(),
@@ -77,13 +89,23 @@ fun SearchScreen(
         item {
             GlassSearchField(
                 value = text,
-                onValueChange = { text = it },
-                onSearch = { vm.search(text); focus.clearFocus() },
-                onClear = { text = ""; vm.clearSearch() },
+                onValueChange = { text = it; typing = true },
+                onSearch = { typing = false; vm.search(text); focus.clearFocus() },
+                onClear = { text = ""; typing = false; vm.clearSearch() },
             )
         }
 
         when {
+            typing && suggestions.isNotEmpty() -> {
+                itemsIndexed(suggestions) { _, sug ->
+                    SuggestionRow(
+                        sug,
+                        onPick = { text = sug; typing = false; vm.search(sug); focus.clearFocus() },
+                        onFill = { text = sug },
+                    )
+                }
+            }
+
             st.loading -> item { Loader() }
 
             st.done && st.results.isNotEmpty() -> {
@@ -114,7 +136,7 @@ fun SearchScreen(
                                         .weight(1f)
                                         .height(84.dp)
                                         .glass(RoundedCornerShape(18.dp), tint = g.color, strength = 2.2f)
-                                        .clickable { text = g.name; vm.search(g.query) }
+                                        .clickable { text = g.name; typing = false; vm.search(g.query) }
                                         .padding(14.dp),
                                 ) {
                                     Text(g.name, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp, color = Color.White)
@@ -160,6 +182,23 @@ internal fun GlassSearchField(
         }
         if (value.isNotEmpty()) {
             IconButton(onClick = onClear) { Icon(Icons.Rounded.Clear, "Borrar", tint = Pal.Dim) }
+        }
+    }
+}
+
+@Composable
+internal fun SuggestionRow(text: String, onPick: () -> Unit, onFill: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = Pal.Dim, modifier = Modifier.padding(horizontal = 10.dp).size(22.dp))
+        Text(text, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f), maxLines = 1)
+        IconButton(onClick = onFill) {
+            Icon(Icons.Rounded.NorthWest, "Usar este texto", tint = Pal.Dim)
         }
     }
 }
