@@ -124,7 +124,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
                 vm.setMixSeconds(listOf(5, 8, 12, 16)[it])
             }
             Label("Curva")
-            ChipRow(listOf("Suave", "Corte rápido", "Lineal"), curve) { vm.setMixCurve(it) }
+            ChipRow(listOf("Suave", "Corte rápido", "Lineal", "Limpia"), curve) { vm.setMixCurve(it) }
         }
 
         SettingsCard("Audio", "Siempre la mejor calidad que entrega YouTube.") {

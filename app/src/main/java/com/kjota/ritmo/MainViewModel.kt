@@ -183,7 +183,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _mixSec = MutableStateFlow(Prefs.getLong(app, "mix_sec", 8L).toInt())
     val mixSec: StateFlow<Int> = _mixSec.asStateFlow()
 
-    private val _mixCurve = MutableStateFlow(Prefs.getLong(app, "mix_curve", 0L).toInt())
+    private val _mixCurve = MutableStateFlow(Prefs.getLong(app, "mix_curve", 3L).toInt())
     val mixCurve: StateFlow<Int> = _mixCurve.asStateFlow()
     val mixBus = MixBus.state
 

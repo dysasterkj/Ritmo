@@ -231,7 +231,7 @@ class PlaybackService : MediaSessionService() {
         mixMs = min(fade, (remaining - 1_200L).coerceAtLeast(1_500L))
         mixElapsed = 0L
         lastTick = SystemClock.elapsedRealtime()
-        mixCurve = Prefs.getLong(this, "mix_curve", 0L).toInt()
+        mixCurve = Prefs.getLong(this, "mix_curve", 3L).toInt()
         inMix = true
         expectTransition = true
 
@@ -240,11 +240,12 @@ class PlaybackService : MediaSessionService() {
         MixBus.state.value = MixBus.State(true, 0f, outTitle, next?.mediaMetadata?.title?.toString().orEmpty())
 
         // La "cola" ya suena en sincronía (en silencio): pasa a volumen completo y sigue la canción que termina.
+        // Primero se silencia el principal (así nunca suena la misma canción dos veces con desfase = eco)...
+        player.volume = 0f
         tail.volume = 1f
         tail.playWhenReady = true
 
-        // El principal salta a la siguiente canción empezando en silencio.
-        player.volume = 0f
+        // ...y salta a la siguiente canción empezando en silencio.
         player.seekToNextMediaItem()
     }
 
@@ -256,6 +257,12 @@ class PlaybackService : MediaSessionService() {
                 sin(t * PI / 2).toFloat() to cos(t * PI / 2).toFloat()
             }
             2 -> x to (1f - x) // lineal
+            3 -> { // limpia: la que sale baja primero y la nueva sube después; nunca suenan fuerte las dos juntas
+                val out = Math.pow((1f - x).toDouble(), 1.5).toFloat()
+                val t = ((x - 0.15f) / 0.85f).coerceIn(0f, 1f)
+                val s = sin(t * PI / 2).toFloat()
+                (s * s) to out
+            }
             else -> sin(x * PI / 2).toFloat() to cos(x * PI / 2).toFloat() // suave: potencia constante
         }
     }
