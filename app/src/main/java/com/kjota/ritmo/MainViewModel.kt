@@ -220,6 +220,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _pendingImport = MutableStateFlow<String?>(null)
     val pendingImport: StateFlow<String?> = _pendingImport.asStateFlow()
 
+    private val _openQueue = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val openQueue: SharedFlow<Unit> = _openQueue.asSharedFlow()
+    fun requestQueue() { _openQueue.tryEmit(Unit) }
+
     private val _queue = MutableStateFlow(QueueState())
     val queue: StateFlow<QueueState> = _queue.asStateFlow()
 

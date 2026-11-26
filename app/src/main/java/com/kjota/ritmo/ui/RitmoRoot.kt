@@ -253,15 +253,20 @@ fun RitmoRoot(vm: MainViewModel) {
                         .nestedScroll(connection)
                         .pointerInput(hPx) {
                             val tracker = VelocityTracker()
+                            var up = 0f
                             detectVerticalDragGestures(
-                                onDragStart = { tracker.resetTracking(); settle?.cancel() },
+                                onDragStart = { tracker.resetTracking(); settle?.cancel(); up = 0f },
                                 onVerticalDrag = { change, dy ->
+                                    up += dy
                                     tracker.addPosition(change.uptimeMillis, change.position)
                                     closed = (closed + dy / hPx).coerceIn(0f, 1f)
                                     // Al llegar abajo el panel se quita de la composición y se perdería el "soltar".
                                     if (closed >= 0.999f) playerOpen = false
                                 },
-                                onDragEnd = { release(tracker.calculateVelocity().y) },
+                                onDragEnd = {
+                                    if (up < -90f && closed < 0.03f) vm.requestQueue()
+                                    release(tracker.calculateVelocity().y)
+                                },
                                 onDragCancel = { release(0f) },
                             )
                         },

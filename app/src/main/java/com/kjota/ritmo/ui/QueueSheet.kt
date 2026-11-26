@@ -140,3 +140,59 @@ fun QueueSheet(vm: MainViewModel, onDismiss: () -> Unit) {
         }
     }
 }
+
+/** Flechita junto al título: más canciones del artista que suena. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ArtistSheet(vm: MainViewModel, artist: String, onDismiss: () -> Unit) {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var list by remember { androidx.compose.runtime.mutableStateOf<List<com.kjota.ritmo.data.Track>?>(null) }
+    LaunchedEffect(artist) {
+        val key = artist.lowercase().trim()
+        list = try {
+            com.kjota.ritmo.engine.YouTube.search(artist, 30)
+                .filter { it.artist.lowercase().contains(key.take(12)) || key.contains(it.artist.lowercase().trim().take(12)) }
+                .ifEmpty { com.kjota.ritmo.engine.YouTube.search(artist, 30) }
+        } catch (_: Throwable) { emptyList() }
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss, sheetState = state,
+        containerColor = Color(0xF2140A12), contentColor = Color.White,
+    ) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Text(
+                "Más de $artist", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 20.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            val l = list
+            if (l == null) {
+                Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator(color = Pal.Green)
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                    itemsIndexed(l, key = { i, t -> "$i${t.id}" }) { i, t ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { vm.play(l, i, radio = true); onDismiss() }
+                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AsyncImage(
+                                model = t.thumb, contentDescription = null, contentScale = ContentScale.Crop,
+                                modifier = Modifier.width(88.dp).height(50.dp).clip(RoundedCornerShape(6.dp)),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(t.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(t.artist + " • " + formatTime(t.durationSec), fontSize = 13.sp, color = Pal.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

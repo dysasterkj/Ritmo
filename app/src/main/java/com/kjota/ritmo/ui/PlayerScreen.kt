@@ -26,6 +26,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -99,6 +102,8 @@ fun PlayerScreen(
     val vOn = video != null && mode == 2
     if (mode == 1 || mode == 2) KeepScreenOn()
     var showQueue by remember { mutableStateOf(false) }
+    var showArtist by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.openQueue.collect { showQueue = true } }
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val mixState by vm.mixBus.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -243,19 +248,23 @@ fun PlayerScreen(
                 Spacer(Modifier.height(10.dp))
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().clickable { showArtist = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Column(Modifier.weight(1f)) {
                     Text(t.title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(t.artist, fontSize = 15.sp, color = Pal.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                Icon(Icons.Rounded.ChevronRight, "Más del artista", tint = Pal.Dim, modifier = Modifier.size(28.dp))
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             ) {
                 Row(
                     Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)),
@@ -269,17 +278,23 @@ fun PlayerScreen(
                         Icon(Icons.Rounded.ThumbDown, "No me gusta", tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .clickable { onPickPlaylist(t) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                ActionChip("Guardar", false, { onPickPlaylist(t) }) { Icon(Icons.Rounded.PlaylistAdd, null, tint = it, modifier = Modifier.size(22.dp)) }
+                ActionChip(
+                    when {
+                        downloaded -> "Descargada"
+                        percent != null -> "Descargando $percent%"
+                        else -> "Descargar"
+                    },
+                    downloaded,
+                    { if (downloaded) vm.removeDownload(t) else if (percent == null) vm.download(t) },
                 ) {
-                    Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White, modifier = Modifier.size(22.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Guardar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Icon(if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, null, tint = it, modifier = Modifier.size(22.dp))
+                }
+                ActionChip(if (mixOn) "Mix DJ: sí" else "Mix DJ", mixOn, { vm.setMix(!mixOn) }) {
+                    Icon(Icons.Rounded.GraphicEq, null, tint = it, modifier = Modifier.size(22.dp))
+                }
+                ActionChip(if (eqOn) "Ecualizador: sí" else "Ecualizador", eqOn, onOpenEq) {
+                    Icon(Icons.Rounded.Tune, null, tint = it, modifier = Modifier.size(22.dp))
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -350,41 +365,6 @@ fun PlayerScreen(
 
             Spacer(Modifier.weight(0.3f))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = if (mixOn) "Mix DJ: sí" else "Mix DJ",
-                    active = mixOn,
-                    onClick = { vm.setMix(!mixOn) },
-                    icon = { Icon(Icons.Rounded.GraphicEq, null, tint = if (mixOn) Pal.Green else Color.White) },
-                )
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = if (eqOn) "Ecualizador: sí" else "Ecualizador",
-                    active = eqOn,
-                    onClick = onOpenEq,
-                    icon = { Icon(Icons.Rounded.Tune, null, tint = if (eqOn) Pal.Green else Color.White) },
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = when {
-                        downloaded -> "Descargada"
-                        percent != null -> "Descargando $percent%"
-                        else -> "Descargar"
-                    },
-                    active = downloaded,
-                    onClick = { if (downloaded) vm.removeDownload(t) else if (percent == null) vm.download(t) },
-                    icon = {
-                        Icon(
-                            if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
-                            null, tint = if (downloaded) Pal.Green else Color.White,
-                        )
-                    },
-                )
-            }
             Spacer(Modifier.height(6.dp))
             Column(
                 Modifier
@@ -406,6 +386,7 @@ fun PlayerScreen(
             }
         }
         if (showQueue) QueueSheet(vm) { showQueue = false }
+        if (showArtist) ArtistSheet(vm, t.artist) { showArtist = false }
     }
 }
 
@@ -435,6 +416,23 @@ internal fun ModeToggle(mode: Int, onMode: (Int) -> Unit) {
                 Icon(ic, label, tint = if (sel) Color.Black else Color.White, modifier = Modifier.size(22.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun ActionChip(label: String, active: Boolean, onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
+    val tint = if (active) Pal.Green else Color.White
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (active) Pal.Green.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icon(tint)
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
