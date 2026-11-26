@@ -71,19 +71,13 @@ fun QueuePanel(vm: MainViewModel, frac: Animatable<Float, AnimationVector1D>, he
     val q by vm.queue.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    var filter by remember { mutableIntStateOf(0) }
+    val filter by vm.qMode.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val known = remember(lib) {
         (lib.liked + lib.recent + lib.downloads).map { it.artist.lowercase().trim() }.toSet()
     }
     val cur = q.items.getOrNull(q.index)
-    val rows = q.items.withIndex().filter { (i, t) ->
-        i == q.index || when (filter) {
-            1 -> t.artist.lowercase().trim() in known
-            2 -> t.artist.lowercase().trim() !in known
-            else -> true
-        }
-    }
+    val rows = q.items.withIndex().toList()
     val settle: (Float) -> Unit = { v ->
         scope.launch {
             val target = if (v > 800f) 0f else if (v < -800f) 1f else if (frac.value > 0.5f) 1f else 0f
@@ -158,7 +152,7 @@ fun QueuePanel(vm: MainViewModel, frac: Animatable<Float, AnimationVector1D>, he
                     Modifier
                         .clip(RoundedCornerShape(50))
                         .background(if (filter == i) Color.White else Color.White.copy(alpha = 0.12f))
-                        .clickable { filter = i }
+                        .clickable { vm.setQueueMode(i) }
                         .padding(horizontal = 16.dp, vertical = 9.dp),
                 ) {
                     Text(label, color = if (filter == i) Color.Black else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)

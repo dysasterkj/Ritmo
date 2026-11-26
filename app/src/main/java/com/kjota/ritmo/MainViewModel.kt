@@ -235,6 +235,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private var radioEnabled = true
     private var radioFor: String? = null
+    private val _qMode = MutableStateFlow(0)
+    /** 0 = Todo, 1 = Conocidas, 2 = Por descubrir (qué tipo de canciones se agregan a "A continuación"). */
+    val qMode: StateFlow<Int> = _qMode.asStateFlow()
+
     private var radioSeedTitle = ""
     private var skipWhenReady = false
     private var searchJob: Job? = null
@@ -344,6 +348,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val items = ArrayList<Track>(p.mediaItemCount)
         for (i in 0 until p.mediaItemCount) items.add(p.getMediaItemAt(i).toTrack())
         _queue.value = QueueState(items, p.currentMediaItemIndex.coerceAtLeast(0))
+    }
+
+    /** Cambia el tipo de sugerencias: reemplaza lo que viene por canciones conocidas o por descubrir. */
+    fun setQueueMode(mode: Int) {
+        _qMode.value = mode
+        val c = controller ?: return
+        val cur = c.currentMediaItemIndex
+        if (cur + 1 < c.mediaItemCount) c.removeMediaItems(cur + 1, c.mediaItemCount)
+        radioEnabled = true
+        radioFor = null
+        maybeExtendWithRadio()
+        publishQueue(c)
     }
 
     fun playAt(index: Int) {
@@ -466,7 +482,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     have.add(tr.id); titles.add(titleKey(tr.title))
                     perArtist.merge(tr.artist.lowercase().trim(), 1, Int::plus)
                 }
-                val fresh = more.filter { !Taste.isBlocked(it, seedTitle) }
+                val mode = _qMode.value
+                val lib = Library.state.value
+                val libAll = (lib.liked + lib.recent + lib.downloads)
+                val known = libAll.map { it.artist.lowercase().trim() }.toSet()
+                fun isKnown(t: Track) = t.artist.lowercase().trim() in known
+                fun clean(list: List<Track>): List<Track> = list
+                    .filter { !Taste.isBlocked(it, seedTitle) }
                     .filter { have.add(it.id) }
                     .filter { titles.add(titleKey(it.title)) }
                     .filter {
@@ -475,7 +497,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         perArtist[k] = n + 1
                         n < 2
                     }
-                    .take(25)
+                // Conocidas: parecidas + cosas que ya escuchaste. Por descubrir: artistas nuevos. Todo: el mix normal.
+                val pool = when (mode) {
+                    1 -> more.filter { isKnown(it) } + libAll.shuffled()
+                    2 -> more.filter { !isKnown(it) }
+                    else -> more
+                }
+                var fresh = clean(pool)
+                if (fresh.size < 8) {
+                    // Los mixes largos casi no tienen "radio": se completa con búsquedas
+                    val q = if (mode == 2) generalPool.random().query else seed.artist
+                    var ex = try { YouTube.search(q, 25, 12 * 60) } catch (_: Throwable) { emptyList() }
+                    if (mode == 2) ex = ex.filter { !isKnown(it) }
+                    fresh = fresh + clean(ex)
+                }
+                fresh = fresh.take(25)
                 if (fresh.isNotEmpty()) cc.addMediaItems(fresh.map { it.toMediaItem() })
                 if (skipWhenReady && cc.hasNextMediaItem()) {
                     skipWhenReady = false
