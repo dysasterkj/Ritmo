@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
@@ -81,6 +82,7 @@ fun TrackMenu(
         MenuItem("Agregar a playlist", Icons.Rounded.PlaylistAdd) { onDismiss(); onPickPlaylist(track) }
         MenuItem("Reproducir a continuación", Icons.Rounded.QueueMusic) { onDismiss(); vm.playNext(track) }
         MenuItem("Agregar a la cola", Icons.Rounded.Add) { onDismiss(); vm.addToQueue(track) }
+        MenuItem("No recomendar este artista", Icons.Rounded.Block) { onDismiss(); vm.dislike(track) }
     }
 }
 

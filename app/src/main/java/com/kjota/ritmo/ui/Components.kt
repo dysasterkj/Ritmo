@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
@@ -194,6 +195,7 @@ fun TrackRow(
                 MenuItem("Agregar a playlist", Icons.Rounded.PlaylistAdd) { menu = false; onPickPlaylist(track) }
                 MenuItem("Reproducir a continuación", Icons.Rounded.QueueMusic) { menu = false; vm.playNext(track) }
                 MenuItem("Agregar a la cola", Icons.Rounded.Add) { menu = false; vm.addToQueue(track) }
+                MenuItem("No recomendar este artista", Icons.Rounded.Block) { menu = false; vm.dislike(track) }
                 extra.forEach { (label, action) ->
                     MenuItem(label, Icons.Rounded.Delete) { menu = false; action() }
                 }

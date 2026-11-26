@@ -67,6 +67,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -101,9 +103,15 @@ fun PlayerScreen(
     var drag by remember { mutableStateOf<Float?>(null) }
     val vOn = video != null && mode == 2
     if (mode == 1 || mode == 2) KeepScreenOn()
-    var showQueue by remember { mutableStateOf(false) }
+    val qFrac = remember { androidx.compose.animation.core.Animatable(0f) }
+    val qScope = androidx.compose.runtime.rememberCoroutineScope()
+    var rootH by remember { mutableStateOf(0f) }
     var showArtist by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { vm.openQueue.collect { showQueue = true } }
+    LaunchedEffect(Unit) {
+        vm.openQueue.collect {
+            qFrac.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f))
+        }
+    }
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val mixState by vm.mixBus.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -112,6 +120,7 @@ fun PlayerScreen(
         Modifier
             .fillMaxSize()
             .background(Pal.Ink)
+            .onSizeChanged { rootH = it.height.toFloat() }
             .pointerInput(Unit) { detectTapGestures { } },
     ) {
         if (t != null) {
@@ -369,13 +378,24 @@ fun PlayerScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { showQueue = true }
-                    .pointerInput(Unit) {
-                        var dy = 0f
+                    .clickable { qScope.launch { qFrac.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f)) } }
+                    .pointerInput(rootH) {
+                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         detectVerticalDragGestures(
-                            onDragStart = { dy = 0f },
-                            onDragEnd = { if (dy < -30f) showQueue = true },
-                        ) { _, d -> dy += d }
+                            onDragStart = { tracker.resetTracking() },
+                            onVerticalDrag = { change, dy ->
+                                change.consume()
+                                tracker.addPosition(change.uptimeMillis, change.position)
+                                if (rootH > 0f) qScope.launch { qFrac.snapTo((qFrac.value - dy / rootH).coerceIn(0f, 1f)) }
+                            },
+                            onDragEnd = {
+                                val v = tracker.calculateVelocity().y
+                                qScope.launch {
+                                    val target = if (v < -800f) 1f else if (v > 800f) 0f else if (qFrac.value > 0.3f) 1f else 0f
+                                    qFrac.animateTo(target, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f))
+                                }
+                            },
+                        )
                     }
                     .padding(vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -385,7 +405,7 @@ fun PlayerScreen(
                 Text("A continuación", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
-        if (showQueue) QueueSheet(vm) { showQueue = false }
+        if (qFrac.value > 0.001f) QueuePanel(vm, qFrac, rootH)
         if (showArtist) ArtistSheet(vm, t.artist) { showArtist = false }
     }
 }

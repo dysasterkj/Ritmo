@@ -327,6 +327,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _messages.tryEmit("Guardada como playlist: $name")
     }
 
+    /** "No recomendar este artista" desde el menú o la hoja del artista. */
+    fun blockCurrentArtist() {
+        _now.value.track?.let { dislike(it) }
+    }
+
     /** 👎: salta la canción, no vuelve a sugerir esa canción ni a ese artista y limpia lo parecido de la cola. */
     fun dislike(t: Track) {
         Taste.dislike(t)
@@ -339,7 +344,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (c.currentMediaItem?.mediaId == t.id) {
             if (c.hasNextMediaItem()) c.seekToNextMediaItem() else skipWhenReady = true
         }
-        _messages.tryEmit("Listo, no te sugeriremos más canciones así")
+        _shelves.value = _shelves.value.mapNotNull { sh ->
+            val ok = sh.tracks.filter { !Taste.isBlocked(it) }
+            if (ok.isEmpty()) null else sh.copy(tracks = ok)
+        }
+        _messages.tryEmit("Listo, no te sugeriremos más a ${t.artist}")
         radioFor = null
         maybeExtendWithRadio()
         publishQueue(c)
