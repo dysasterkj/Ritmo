@@ -75,9 +75,9 @@ object WidgetUpdater {
                 val bmp = s?.let { cover(app, it.id) }
                 val liked = s != null && Library.isLiked(s.id)
                 val mgr = AppWidgetManager.getInstance(app)
-                push(app, mgr, RitmoWidgetSmall::class.java, R.layout.widget_small, s, bmp, liked)
-                push(app, mgr, RitmoWidgetMedium::class.java, R.layout.widget_medium, s, bmp, liked)
-                push(app, mgr, RitmoWidgetLarge::class.java, R.layout.widget_large, s, bmp, liked)
+                for (cls in listOf(RitmoWidgetSmall::class.java, RitmoWidgetMedium::class.java, RitmoWidgetLarge::class.java)) {
+                    push(app, mgr, cls, s, bmp, liked)
+                }
             } catch (_: Throwable) { }
         }
     }
@@ -97,11 +97,26 @@ object WidgetUpdater {
     }
 
     private fun push(
-        app: Context, mgr: AppWidgetManager, cls: Class<*>, layout: Int,
+        app: Context, mgr: AppWidgetManager, cls: Class<*>,
         s: Snap?, bmp: Bitmap?, liked: Boolean,
     ) {
         val ids = mgr.getAppWidgetIds(ComponentName(app, cls))
-        if (ids.isEmpty()) return
+        for (id in ids) {
+            // El diseño se elige por el tamaño real al que el usuario estiró el widget.
+            val o = mgr.getAppWidgetOptions(id)
+            val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 70)
+            val layout = when {
+                h >= 210 -> R.layout.widget_large
+                h >= 110 -> R.layout.widget_medium
+                w < 170 -> R.layout.widget_mini
+                else -> R.layout.widget_small
+            }
+            mgr.updateAppWidget(id, build(app, layout, s, bmp, liked))
+        }
+    }
+
+    private fun build(app: Context, layout: Int, s: Snap?, bmp: Bitmap?, liked: Boolean): RemoteViews {
         val rv = RemoteViews(app.packageName, layout)
         rv.setTextViewText(R.id.w_title, s?.title ?: "Ritmo")
         rv.setTextViewText(R.id.w_artist, s?.artist ?: "Toca para elegir música")
@@ -125,7 +140,7 @@ object WidgetUpdater {
         act(R.id.w_dislike, WidgetReceiver.DISLIKE, 7)
         act(R.id.w_btn_liked, WidgetReceiver.PLAY_LIKED, 5)
         act(R.id.w_btn_recent, WidgetReceiver.PLAY_RECENT, 6)
-        mgr.updateAppWidget(ids, rv)
+        return rv
     }
 
     private fun action(app: Context, action: String, code: Int): PendingIntent =
