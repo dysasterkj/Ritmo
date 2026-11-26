@@ -301,6 +301,9 @@ fun RitmoRoot(vm: MainViewModel) {
             }
             }
 
+            if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
+            if (videoFull && video != null) VideoFullScreen(vm, video, onClose = { videoFull = false })
+
             AnimatedVisibility(
                 visible = undoEv != null,
                 enter = slideInVertically(tween(260)) { it } + fadeIn(),
@@ -311,9 +314,11 @@ fun RitmoRoot(vm: MainViewModel) {
                 Row(
                     Modifier
                         .navigationBarsPadding()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 150.dp)
+                        .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                         .fillMaxWidth()
-                        .glass(RoundedCornerShape(20.dp), strength = 1.8f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF232A33))
+                        .border(1.dp, Color(0xFF3A4452), RoundedCornerShape(16.dp))
                         .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -324,8 +329,6 @@ fun RitmoRoot(vm: MainViewModel) {
                 }
             }
 
-            if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
-            if (videoFull && video != null) VideoFullScreen(vm, video, onClose = { videoFull = false })
         }
     }
 

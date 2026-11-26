@@ -13,7 +13,13 @@
         <TextView android:id="@+id/w_artist" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:textColor="#B3FFFFFF" android:textSize="11sp" android:singleLine="true" android:ellipsize="end" />
     </LinearLayout>
+    <ImageButton android:id="@+id/w_prev" android:layout_width="34dp" android:layout_height="34dp"
+        android:background="@drawable/widget_btn" android:src="@drawable/ic_w_prev"
+        android:padding="7dp" android:contentDescription="Anterior" />
     <ImageButton android:id="@+id/w_play" android:layout_width="40dp" android:layout_height="40dp"
-        android:background="@drawable/widget_btn_main" android:src="@drawable/ic_w_play"
+        android:layout_marginStart="6dp" android:background="@drawable/widget_btn_main" android:src="@drawable/ic_w_play"
         android:padding="8dp" android:contentDescription="Reproducir o pausar" />
+    <ImageButton android:id="@+id/w_next" android:layout_width="34dp" android:layout_height="34dp"
+        android:layout_marginStart="6dp" android:background="@drawable/widget_btn" android:src="@drawable/ic_w_next"
+        android:padding="7dp" android:contentDescription="Siguiente" />
 </LinearLayout>

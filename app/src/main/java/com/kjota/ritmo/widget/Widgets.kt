@@ -122,6 +122,7 @@ object WidgetUpdater {
         act(R.id.w_next, WidgetReceiver.NEXT, 2)
         act(R.id.w_prev, WidgetReceiver.PREV, 3)
         act(R.id.w_like, WidgetReceiver.LIKE, 4)
+        act(R.id.w_dislike, WidgetReceiver.DISLIKE, 7)
         act(R.id.w_btn_liked, WidgetReceiver.PLAY_LIKED, 5)
         act(R.id.w_btn_recent, WidgetReceiver.PLAY_RECENT, 6)
         mgr.updateAppWidget(ids, rv)
@@ -158,12 +159,19 @@ class WidgetReceiver : BroadcastReceiver() {
                     }
                     NEXT -> c.seekToNextMediaItem()
                     PREV -> c.seekToPreviousMediaItem()
+                    DISLIKE -> c.currentMediaItem?.toTrack()?.let { t ->
+                        com.kjota.ritmo.data.Taste.init(app)
+                        com.kjota.ritmo.data.Taste.dislike(t)
+                        if (Library.isLiked(t.id)) Library.toggleLike(t)
+                        if (c.hasNextMediaItem()) c.seekToNextMediaItem()
+                        Toast.makeText(app, "No te sugeriremos más a ${t.artist}", Toast.LENGTH_SHORT).show()
+                    }
                     LIKE -> c.currentMediaItem?.toTrack()?.let { Library.toggleLike(it) }
                     PLAY_LIKED -> start(app, c, Library.state.value.liked.shuffled(), "Aún no tienes favoritas")
                     PLAY_RECENT -> start(app, c, Library.state.value.recent, "Aún no hay historial")
                 }
             } catch (_: Throwable) { }
-            if (action == LIKE) WidgetUpdater.refresh(app)
+            if (action == LIKE || action == DISLIKE) WidgetUpdater.refresh(app)
             // Se suelta el control un instante después para que los comandos lleguen al servicio.
             Handler(Looper.getMainLooper()).postDelayed({
                 try { MediaController.releaseFuture(future) } catch (_: Throwable) { }
@@ -187,6 +195,7 @@ class WidgetReceiver : BroadcastReceiver() {
         const val PLAY_PAUSE = "com.kjota.ritmo.widget.PLAY_PAUSE"
         const val NEXT = "com.kjota.ritmo.widget.NEXT"
         const val PREV = "com.kjota.ritmo.widget.PREV"
+        const val DISLIKE = "com.kjota.ritmo.widget.DISLIKE"
         const val LIKE = "com.kjota.ritmo.widget.LIKE"
         const val PLAY_LIKED = "com.kjota.ritmo.widget.PLAY_LIKED"
         const val PLAY_RECENT = "com.kjota.ritmo.widget.PLAY_RECENT"

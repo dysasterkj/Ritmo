@@ -120,6 +120,25 @@ class PlaybackService : MediaSessionService() {
 
         session = MediaSession.Builder(this, player).build()
 
+        // Como YouTube Music: al abrir (aunque la app se haya cerrado del todo) queda en la última canción, en pausa.
+        restoreLastSession()
+        player.addListener(object : Player.Listener {
+            override fun onEvents(p: Player, events: Player.Events) {
+                if (events.containsAny(
+                        Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION,
+                        Player.EVENT_POSITION_DISCONTINUITY,
+                    )
+                ) saveLastSession()
+            }
+        })
+        handler.postDelayed(object : Runnable {
+            override fun run() {
+                if (!ticking) return
+                if (player.isPlaying) saveLastSession()
+                handler.postDelayed(this, 5000L)
+            }
+        }, 5000L)
+
         ticking = true
         handler.postDelayed(ticker, 250L)
     }
@@ -317,12 +336,50 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
+    private val sessionFile get() = java.io.File(filesDir, "last_session.json")
+
+    private fun saveLastSession() {
+        try {
+            val p = session?.player ?: return
+            if (p.mediaItemCount == 0) return
+            val from = (p.currentMediaItemIndex - 5).coerceAtLeast(0)
+            val to = (p.currentMediaItemIndex + 40).coerceAtMost(p.mediaItemCount - 1)
+            val arr = org.json.JSONArray()
+            for (i in from..to) arr.put(p.getMediaItemAt(i).toTrack().toJson())
+            sessionFile.writeText(
+                org.json.JSONObject()
+                    .put("index", p.currentMediaItemIndex - from)
+                    .put("pos", p.currentPosition.coerceAtLeast(0L))
+                    .put("items", arr)
+                    .toString()
+            )
+        } catch (_: Throwable) { }
+    }
+
+    private fun restoreLastSession() {
+        try {
+            val p = session?.player ?: return
+            if (p.mediaItemCount > 0 || !sessionFile.exists()) return
+            val o = org.json.JSONObject(sessionFile.readText())
+            val a = o.getJSONArray("items")
+            val items = ArrayList<com.kjota.ritmo.data.Track>()
+            for (i in 0 until a.length()) items.add(com.kjota.ritmo.data.Track.fromJson(a.getJSONObject(i)))
+            if (items.isEmpty()) return
+            val idx = o.optInt("index", 0).coerceIn(0, items.lastIndex)
+            p.setMediaItems(items.map { it.toMediaItem() }, idx, o.optLong("pos", 0L))
+            p.prepare()
+            p.pause()
+        } catch (_: Throwable) { }
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
+        saveLastSession()
         val p = session?.player
         if (p == null || !p.playWhenReady || p.mediaItemCount == 0) stopSelf()
     }
 
     override fun onDestroy() {
+        saveLastSession()
         ticking = false
         AudioFx.release()
         handler.removeCallbacksAndMessages(null)

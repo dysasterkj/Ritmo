@@ -11,6 +11,9 @@
         android:textColor="#B3FFFFFF" android:textSize="13sp" android:singleLine="true" android:ellipsize="end" />
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center">
+        <ImageButton android:id="@+id/w_dislike" android:layout_width="42dp" android:layout_height="42dp"
+            android:layout_marginEnd="8dp" android:background="@drawable/widget_btn" android:src="@drawable/ic_w_dislike" android:padding="9dp"
+            android:contentDescription="No me gusta" />
         <ImageButton android:id="@+id/w_like" android:layout_width="42dp" android:layout_height="42dp"
             android:background="@drawable/widget_btn" android:src="@drawable/ic_w_heart" android:padding="9dp"
             android:contentDescription="Favorita" />
