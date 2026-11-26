@@ -23,6 +23,12 @@ object Taste {
     private val _wordsText = MutableStateFlow(DEFAULT_WORDS)
     val wordsText: StateFlow<String> = _wordsText
 
+    private val _rev = MutableStateFlow(0)
+    /** Sube cada vez que cambia el filtro (para que la pantalla de Inicio se vuelva a filtrar). */
+    val rev: StateFlow<Int> = _rev
+
+    class Undo(val id: String, val addedId: Boolean, val artist: String?)
+
     private val _count = MutableStateFlow(0)
     val dislikedCount: StateFlow<Int> = _count
 
@@ -63,23 +69,35 @@ object Taste {
     }
 
     @Synchronized
-    fun dislike(t: Track) {
-        ids.add(t.id)
+    fun dislike(t: Track): Undo {
+        val addedId = ids.add(t.id)
         val a = norm(t.artist)
-        if (a.length >= 3) artists.add(a)
+        val addedArtist = a.length >= 3 && artists.add(a)
         _count.value = ids.size
+        _rev.value++
+        save()
+        return Undo(t.id, addedId, if (addedArtist) a else null)
+    }
+
+    @Synchronized
+    fun restore(u: Undo) {
+        if (u.addedId) ids.remove(u.id)
+        u.artist?.let { artists.remove(it) }
+        _count.value = ids.size
+        _rev.value++
         save()
     }
 
     @Synchronized
     fun clearDislikes() {
-        ids.clear(); artists.clear(); _count.value = 0; save()
+        ids.clear(); artists.clear(); _count.value = 0; _rev.value++; save()
     }
 
     @Synchronized
     fun setWords(text: String) {
         _wordsText.value = text
         words = parse(text)
+        _rev.value++
         save()
     }
 

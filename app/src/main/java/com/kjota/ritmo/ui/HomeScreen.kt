@@ -69,6 +69,8 @@ fun HomeScreen(
 ) {
     val now by vm.now.collectAsStateWithLifecycle()
     val lib by vm.lib.collectAsStateWithLifecycle()
+    val tasteRev by com.kjota.ritmo.data.Taste.rev.collectAsStateWithLifecycle()
+    val recent = remember(lib.recent, tasteRev) { lib.recent.filter { !com.kjota.ritmo.data.Taste.isBlocked(it) } }
     val shelves by vm.shelves.collectAsStateWithLifecycle()
     val loading by vm.shelvesLoading.collectAsStateWithLifecycle()
     val mood by vm.mood.collectAsStateWithLifecycle()
@@ -150,12 +152,12 @@ fun HomeScreen(
                         leading = { GradientIcon(listOf(Pal.Green, Pal.Mint), Icons.Rounded.Download, Modifier.size(56.dp), 0) },
                     )
                 }
-                lib.recent.take(4).chunked(2).forEach { pair ->
+                recent.take(4).chunked(2).forEach { pair ->
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         pair.forEach { t ->
                             QuickTile(
                                 t.title, Modifier.weight(1f),
-                                onClick = { vm.play(lib.recent, lib.recent.indexOf(t), radio = true) },
+                                onClick = { vm.play(recent, recent.indexOf(t), radio = true) },
                                 leading = { Cover(t.thumb, Modifier.size(56.dp), 0) },
                             )
                         }
@@ -165,8 +167,8 @@ fun HomeScreen(
             }
         }
 
-        if (lib.recent.size > 4) {
-            item { ShelfRow("Escuchado hace poco", lib.recent, vm, now.track?.id, onPickPlaylist) { i -> vm.play(lib.recent, i) } }
+        if (recent.size > 4) {
+            item { ShelfRow("Escuchado hace poco", recent, vm, now.track?.id, onPickPlaylist) { i -> vm.play(recent, i) } }
         }
 
         shelves.firstOrNull()?.let { first ->

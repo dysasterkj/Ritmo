@@ -66,6 +66,9 @@ data class SearchState(
 data class Shelf(val title: String, val tracks: List<Track>)
 
 /** Cola de reproducción: todas las canciones y cuál suena. */
+/** Aviso con botón "Deshacer" (se muestra unos segundos). */
+class UndoEvent(val message: String, val undo: () -> Unit)
+
 data class QueueState(val items: List<Track> = emptyList(), val index: Int = 0)
 
 /** Letra de la canción [trackId]: cargando, o con datos (null = no se encontró). */
@@ -220,6 +223,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _pendingImport = MutableStateFlow<String?>(null)
     val pendingImport: StateFlow<String?> = _pendingImport.asStateFlow()
 
+    private val _undo = MutableSharedFlow<UndoEvent>(extraBufferCapacity = 4)
+    val undo: SharedFlow<UndoEvent> = _undo.asSharedFlow()
+
     private val _openQueue = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val openQueue: SharedFlow<Unit> = _openQueue.asSharedFlow()
     fun requestQueue() { _openQueue.tryEmit(Unit) }
@@ -334,8 +340,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** 👎: salta la canción, no vuelve a sugerir esa canción ni a ese artista y limpia lo parecido de la cola. */
     fun dislike(t: Track) {
-        Taste.dislike(t)
-        if (Library.isLiked(t.id)) Library.toggleLike(t)
+        val token = Taste.dislike(t)
+        val prevShelves = _shelves.value
+        val wasLiked = Library.isLiked(t.id)
+        if (wasLiked) Library.toggleLike(t)
         val c = controller ?: return
         val cur = c.currentMediaItemIndex
         for (i in c.mediaItemCount - 1 downTo cur + 1) {
@@ -348,7 +356,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val ok = sh.tracks.filter { !Taste.isBlocked(it) }
             if (ok.isEmpty()) null else sh.copy(tracks = ok)
         }
-        _messages.tryEmit("Listo, no te sugeriremos más a ${t.artist}")
+        _undo.tryEmit(UndoEvent("Listo, no te sugeriremos más a ${t.artist}") {
+            Taste.restore(token)
+            if (wasLiked && !Library.isLiked(t.id)) Library.toggleLike(t)
+            if (_shelves.value.size <= prevShelves.size) _shelves.value = prevShelves
+            radioFor = null
+        })
         radioFor = null
         maybeExtendWithRadio()
         publishQueue(c)

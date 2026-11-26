@@ -86,6 +86,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.delay
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -137,6 +140,10 @@ fun RitmoRoot(vm: MainViewModel) {
     LaunchedEffect(Unit) {
         vm.messages.collect { Toast.makeText(ctx, it, Toast.LENGTH_SHORT).show() }
     }
+
+    var undoEv by remember { mutableStateOf<com.kjota.ritmo.UndoEvent?>(null) }
+    LaunchedEffect(Unit) { vm.undo.collect { undoEv = it } }
+    LaunchedEffect(undoEv) { if (undoEv != null) { delay(10_000); undoEv = null } }
 
     var eqOpen by rememberSaveable { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -292,6 +299,29 @@ fun RitmoRoot(vm: MainViewModel) {
             ) {
                 EqualizerScreen(vm, onClose = { eqOpen = false })
             }
+            }
+
+            AnimatedVisibility(
+                visible = undoEv != null,
+                enter = slideInVertically(tween(260)) { it } + fadeIn(),
+                exit = slideOutVertically(tween(220)) { it } + fadeOut(),
+                modifier = Modifier.align(Alignment.BottomCenter),
+            ) {
+                val ev = undoEv
+                Row(
+                    Modifier
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 150.dp)
+                        .fillMaxWidth()
+                        .glass(RoundedCornerShape(20.dp), strength = 1.8f)
+                        .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(ev?.message ?: "", color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.TextButton(onClick = { ev?.undo?.invoke(); undoEv = null }) {
+                        Text("DESHACER", color = Pal.Green, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    }
+                }
             }
 
             if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
