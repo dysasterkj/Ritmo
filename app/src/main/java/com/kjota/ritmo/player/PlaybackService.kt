@@ -88,9 +88,8 @@ class PlaybackService : MediaSessionService() {
 
         player = buildPlayer(resolving, mainPlayer = true)
         tail = buildPlayer(resolving, mainPlayer = false)
-        // Los dos reproductores comparten sesión de audio: así el ecualizador afecta a ambos durante la mezcla.
-        tail.setAudioSessionId(player.getAudioSessionId())
-        AudioFx.attach(this, player.getAudioSessionId())
+        // Cada reproductor tiene su propia sesión y sus propios efectos (ver AudioFx).
+        AudioFx.attach(this, player.getAudioSessionId(), tail.getAudioSessionId())
 
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {

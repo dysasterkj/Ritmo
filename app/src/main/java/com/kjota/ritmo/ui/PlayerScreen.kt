@@ -25,6 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.DownloadDone
@@ -93,7 +96,8 @@ fun PlayerScreen(
     val t = now.track
     var drag by remember { mutableStateOf<Float?>(null) }
     val vOn = video != null && mode == 2
-    if (mode != 0) KeepScreenOn()
+    if (mode == 1 || mode == 2) KeepScreenOn()
+    var showQueue by remember { mutableStateOf(false) }
     val mixOn by vm.mixOn.collectAsStateWithLifecycle()
     val mixState by vm.mixBus.collectAsStateWithLifecycle()
     val eqOn by vm.eqOn.collectAsStateWithLifecycle()
@@ -244,13 +248,40 @@ fun PlayerScreen(
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(t.artist, fontSize = 15.sp, color = Pal.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = { vm.toggleLike(t) }) {
-                    Icon(
-                        if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                        "Favorita", tint = if (liked) Pal.Green else Color.White, modifier = Modifier.size(28.dp),
-                    )
+            }
+
+            Spacer(Modifier.height(6.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { vm.toggleLike(t) }) {
+                        Icon(Icons.Rounded.ThumbUp, "Me gusta", tint = if (liked) Pal.Green else Color.White, modifier = Modifier.size(24.dp))
+                    }
+                    Box(Modifier.width(1.dp).height(22.dp).background(Color.White.copy(alpha = 0.25f)))
+                    IconButton(onClick = { vm.dislike(t) }) {
+                        Icon(Icons.Rounded.ThumbDown, "No me gusta", tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                }
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable { onPickPlaylist(t) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Guardar", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
             }
+            Spacer(Modifier.height(4.dp))
 
             Slider(
                 value = frac,
@@ -352,15 +383,28 @@ fun PlayerScreen(
                         )
                     },
                 )
-                GlassPill(
-                    modifier = Modifier.weight(1f),
-                    label = "Playlist",
-                    onClick = { onPickPlaylist(t) },
-                    icon = { Icon(Icons.Rounded.PlaylistAdd, null, tint = Color.White) },
-                )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { showQueue = true }
+                    .pointerInput(Unit) {
+                        var dy = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { dy = 0f },
+                            onDragEnd = { if (dy < -30f) showQueue = true },
+                        ) { _, d -> dy += d }
+                    }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.width(40.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.4f)))
+                Spacer(Modifier.height(8.dp))
+                Text("A continuación", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            }
         }
+        if (showQueue) QueueSheet(vm) { showQueue = false }
     }
 }
 

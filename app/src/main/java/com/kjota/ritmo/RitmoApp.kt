@@ -12,6 +12,7 @@ class RitmoApp : Application(), ImageLoaderFactory {
         super.onCreate()
         Library.init(this)
         com.kjota.ritmo.engine.YouTube.init(this)
+        com.kjota.ritmo.data.Taste.init(this)
         Engine.start(this)
     }
 

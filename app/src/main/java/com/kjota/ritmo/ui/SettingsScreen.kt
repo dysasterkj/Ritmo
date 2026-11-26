@@ -1,6 +1,9 @@
 package com.kjota.ritmo.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -160,6 +163,32 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
                     .clip(RoundedCornerShape(50))
                     .background(Pal.Green)
                     .tvClickable(RoundedCornerShape(50)) { vm.updateEngine() }
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+            )
+        }
+
+        val words by com.kjota.ritmo.data.Taste.wordsText.collectAsStateWithLifecycle()
+        val disliked by com.kjota.ritmo.data.Taste.dislikedCount.collectAsStateWithLifecycle()
+        SettingsCard(
+            "Filtro de contenido",
+            "Palabras que no quieres en las sugerencias (separadas por coma). No afecta lo que buscas tú. Con 👎 también se bloquea al artista.",
+        ) {
+            androidx.compose.material3.OutlinedTextField(
+                value = words,
+                onValueChange = { com.kjota.ritmo.data.Taste.setWords(it) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Canciones con 👎: $disliked", color = Pal.Dim, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Borrar los 👎",
+                color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .clickable { com.kjota.ritmo.data.Taste.clearDislikes() }
                     .padding(horizontal = 20.dp, vertical = 10.dp),
             )
         }

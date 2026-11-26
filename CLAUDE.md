@@ -53,3 +53,8 @@ Cada cambio se prueba así; el usuario instala el APK y reporta con capturas.
 
 ## Ideas pendientes
 Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión, importar playlists privadas de Spotify (requeriría login), beat-matching real en el Mix DJ.
+
+## Gustos, cola y efectos (v1.0.x reciente)
+- `data/Taste.kt`: 👎 bloquea canción + artista; palabras bloqueadas editables (Ajustes → Filtro de contenido); palabras extra si la semilla es de "despertar". Filtra el radio (`maybeExtendWithRadio`) y las estantes de Inicio. No filtra las búsquedas.
+- Cola: `MainViewModel.queue` (QueueState) + `ui/QueueSheet.kt` (ModalBottomSheet "A continuación", se abre arrastrando el asa inferior del reproductor). El radio se encadena desde la ÚLTIMA canción para mantener ≥15 por delante, máx. 2 por artista, sin títulos repetidos.
+- `AudioFx`: una cadena de efectos (EQ/Bass/Loudness) por ReproductorExo (cada uno su sesión de audio); antes compartían sesión y el limitador bombeaba durante el Mix DJ.

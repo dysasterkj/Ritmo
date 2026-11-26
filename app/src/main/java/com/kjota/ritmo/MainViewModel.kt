@@ -20,6 +20,7 @@ import com.kjota.ritmo.engine.Importer
 import com.kjota.ritmo.engine.Lyrics
 import com.kjota.ritmo.engine.LyricsData
 import com.kjota.ritmo.engine.YouTube
+import com.kjota.ritmo.data.Taste
 import com.kjota.ritmo.player.AudioFx
 import com.kjota.ritmo.player.MixBus
 import com.kjota.ritmo.player.PlaybackService
@@ -63,6 +64,9 @@ data class SearchState(
 )
 
 data class Shelf(val title: String, val tracks: List<Track>)
+
+/** Cola de reproducción: todas las canciones y cuál suena. */
+data class QueueState(val items: List<Track> = emptyList(), val index: Int = 0)
 
 /** Letra de la canción [trackId]: cargando, o con datos (null = no se encontró). */
 data class LyricsUi(val trackId: String? = null, val loading: Boolean = false, val data: LyricsData? = null)
@@ -216,13 +220,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _pendingImport = MutableStateFlow<String?>(null)
     val pendingImport: StateFlow<String?> = _pendingImport.asStateFlow()
 
+    private val _queue = MutableStateFlow(QueueState())
+    val queue: StateFlow<QueueState> = _queue.asStateFlow()
+
     private var radioEnabled = true
     private var radioFor: String? = null
+    private var radioSeedTitle = ""
+    private var skipWhenReady = false
     private var searchJob: Job? = null
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             sync(player)
+            if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) publishQueue(player)
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -261,6 +271,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 controller = c
                 c.addListener(listener)
                 sync(c)
+                publishQueue(c)
             } catch (_: Exception) {
                 _messages.tryEmit("No se pudo iniciar el reproductor")
             }
@@ -282,6 +293,54 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         )
     }
 
+    private fun publishQueue(p: Player) {
+        val items = ArrayList<Track>(p.mediaItemCount)
+        for (i in 0 until p.mediaItemCount) items.add(p.getMediaItemAt(i).toTrack())
+        _queue.value = QueueState(items, p.currentMediaItemIndex.coerceAtLeast(0))
+    }
+
+    fun playAt(index: Int) {
+        val c = controller ?: return
+        if (index !in 0 until c.mediaItemCount) return
+        c.seekTo(index, 0L)
+        c.prepare()
+        c.play()
+    }
+
+    fun removeFromQueue(index: Int) {
+        val c = controller ?: return
+        if (index !in 0 until c.mediaItemCount || index == c.currentMediaItemIndex) return
+        c.removeMediaItem(index)
+        maybeExtendWithRadio()
+    }
+
+    /** Guarda lo que hay en la cola como playlist. */
+    fun saveQueueAsPlaylist() {
+        val q = _queue.value
+        if (q.items.isEmpty()) return
+        val name = "Mix de " + (q.items.getOrNull(q.index)?.title ?: "mi cola").take(40)
+        Library.createPlaylistWith(name, q.items)
+        _messages.tryEmit("Guardada como playlist: $name")
+    }
+
+    /** 👎: salta la canción, no vuelve a sugerir esa canción ni a ese artista y limpia lo parecido de la cola. */
+    fun dislike(t: Track) {
+        Taste.dislike(t)
+        if (Library.isLiked(t.id)) Library.toggleLike(t)
+        val c = controller ?: return
+        val cur = c.currentMediaItemIndex
+        for (i in c.mediaItemCount - 1 downTo cur + 1) {
+            if (Taste.isBlocked(c.getMediaItemAt(i).toTrack(), radioSeedTitle)) c.removeMediaItem(i)
+        }
+        if (c.currentMediaItem?.mediaId == t.id) {
+            if (c.hasNextMediaItem()) c.seekToNextMediaItem() else skipWhenReady = true
+        }
+        _messages.tryEmit("Listo, no te sugeriremos más canciones así")
+        radioFor = null
+        maybeExtendWithRadio()
+        publishQueue(c)
+    }
+
     private fun startPositionTicker() {
         viewModelScope.launch {
             while (true) {
@@ -296,7 +355,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Reproduce [tracks] empezando por [index]. Con [radio], al terminar la lista sigue con canciones parecidas. */
-    fun play(tracks: List<Track>, index: Int, radio: Boolean = true, shuffle: Boolean = false) {
+    fun play(tracks: List<Track>, index: Int, radio: Boolean = true, shuffle: Boolean = false, context: String = "") {
         val c = controller ?: run {
             _messages.tryEmit("El reproductor aún está iniciando, intenta de nuevo")
             return
@@ -304,6 +363,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (tracks.isEmpty()) return
         radioEnabled = radio
         radioFor = null
+        radioSeedTitle = context.ifEmpty { tracks[index.coerceIn(0, tracks.lastIndex)].title }
         c.shuffleModeEnabled = shuffle
         c.setMediaItems(tracks.map { it.toMediaItem() }, index.coerceIn(0, tracks.lastIndex), 0L)
         c.prepare()
@@ -322,31 +382,52 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun maybeExtendWithRadio() {
         val c = controller ?: return
         if (!radioEnabled) return
-        if (c.currentMediaItemIndex < c.mediaItemCount - 1) return
-        val current = c.currentMediaItem?.toTrack() ?: return
-        if (radioFor == current.id) return
-        radioFor = current.id
+        val remaining = c.mediaItemCount - 1 - c.currentMediaItemIndex
+        if (remaining >= 15 || c.mediaItemCount == 0) return
+        val seed = c.getMediaItemAt(c.mediaItemCount - 1).toTrack()
+        if (radioFor == seed.id) return
+        radioFor = seed.id
+        val seedTitle = radioSeedTitle.ifEmpty { seed.title }
         viewModelScope.launch {
             try {
-                val more = YouTube.radio(current.id)
+                val more = YouTube.radio(seed.id)
                 val cc = controller ?: return@launch
                 val have = HashSet<String>()
-                for (i in 0 until cc.mediaItemCount) have.add(cc.getMediaItemAt(i).mediaId)
-                // Evita llenar la cola con la misma canción repetida: máximo una variante extra del mismo título
-                val seen = HashMap<String, Int>()
-                seen[titleKey(current.title)] = 1
-                val fresh = more.filter { have.add(it.id) }.filter {
-                    val k = titleKey(it.title)
-                    val n = seen.getOrDefault(k, 0)
-                    seen[k] = n + 1
-                    n < 2
+                val titles = HashSet<String>()
+                val perArtist = HashMap<String, Int>()
+                for (i in 0 until cc.mediaItemCount) {
+                    val tr = cc.getMediaItemAt(i).toTrack()
+                    have.add(tr.id); titles.add(titleKey(tr.title))
+                    perArtist.merge(tr.artist.lowercase().trim(), 1, Int::plus)
                 }
+                val fresh = more.filter { !Taste.isBlocked(it, seedTitle) }
+                    .filter { have.add(it.id) }
+                    .filter { titles.add(titleKey(it.title)) }
+                    .filter {
+                        val k = it.artist.lowercase().trim()
+                        val n = perArtist.getOrDefault(k, 0)
+                        perArtist[k] = n + 1
+                        n < 2
+                    }
+                    .take(25)
                 if (fresh.isNotEmpty()) cc.addMediaItems(fresh.map { it.toMediaItem() })
+                if (skipWhenReady && cc.hasNextMediaItem()) {
+                    skipWhenReady = false
+                    cc.seekToNextMediaItem()
+                }
+                publishQueue(cc)
+                // Si aún quedan pocas, sigue con la última (máx. unas pocas veces seguidas)
+                if (fresh.isNotEmpty() && cc.mediaItemCount - 1 - cc.currentMediaItemIndex < 15 && radioChain < 3) {
+                    radioChain++
+                    maybeExtendWithRadio()
+                } else radioChain = 0
             } catch (_: Throwable) {
                 radioFor = null
+                radioChain = 0
             }
         }
     }
+    private var radioChain = 0
 
     private fun prefetchNext() {
         val c = controller ?: return
@@ -457,7 +538,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val fresh = ArrayList<Pair<Int, Shelf>>()
             val lock = Mutex()
             suspend fun publish(order: Int, shelf: Shelf) = lock.withLock {
-                fresh.add(order to shelf)
+                val clean = shelf.tracks.filter { !Taste.isBlocked(it) }
+                if (clean.isEmpty()) return@withLock
+                fresh.add(order to shelf.copy(tracks = clean))
                 _shelves.value = fresh.sortedBy { it.first }.map { it.second }
             }
             val gate = Semaphore(3)
