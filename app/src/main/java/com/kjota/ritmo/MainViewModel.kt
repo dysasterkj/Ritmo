@@ -243,6 +243,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         override fun onEvents(player: Player, events: Player.Events) {
             sync(player)
             if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION)) publishQueue(player)
+            if (events.containsAny(Player.EVENT_PLAY_WHEN_READY_CHANGED, Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_POSITION_DISCONTINUITY)) saveSession()
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -280,6 +281,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val c = future.get()
                 controller = c
                 c.addListener(listener)
+                restoreSession(c)
                 sync(c)
                 publishQueue(c)
             } catch (_: Exception) {
@@ -301,6 +303,41 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             shuffle = p.shuffleModeEnabled,
             repeatMode = p.repeatMode,
         )
+    }
+
+    private val sessionFile get() = java.io.File(app.filesDir, "last_session.json")
+
+    /** Guarda la cola y el punto exacto de la canción para retomarla al volver a abrir la app. */
+    private fun saveSession() {
+        val c = controller ?: return
+        if (c.mediaItemCount == 0) return
+        val from = (c.currentMediaItemIndex - 5).coerceAtLeast(0)
+        val to = (c.currentMediaItemIndex + 40).coerceAtMost(c.mediaItemCount - 1)
+        val arr = org.json.JSONArray()
+        for (i in from..to) arr.put(c.getMediaItemAt(i).toTrack().toJson())
+        val json = org.json.JSONObject()
+            .put("index", c.currentMediaItemIndex - from)
+            .put("pos", c.currentPosition.coerceAtLeast(0L))
+            .put("items", arr)
+            .toString()
+        viewModelScope.launch(Dispatchers.IO) { try { sessionFile.writeText(json) } catch (_: Throwable) { } }
+    }
+
+    private fun restoreSession(c: Player) {
+        if (c.mediaItemCount > 0) return
+        try {
+            val f = sessionFile
+            if (!f.exists()) return
+            val o = org.json.JSONObject(f.readText())
+            val a = o.getJSONArray("items")
+            val items = ArrayList<Track>()
+            for (i in 0 until a.length()) items.add(Track.fromJson(a.getJSONObject(i)))
+            if (items.isEmpty()) return
+            val idx = o.optInt("index", 0).coerceIn(0, items.lastIndex)
+            c.setMediaItems(items.map { it.toMediaItem() }, idx, o.optLong("pos", 0L))
+            c.prepare()
+            c.pause()
+        } catch (_: Throwable) { }
     }
 
     private fun publishQueue(p: Player) {
@@ -367,6 +404,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         publishQueue(c)
     }
 
+    private var saveTick = 0
+
     private fun startPositionTicker() {
         viewModelScope.launch {
             while (true) {
@@ -375,6 +414,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 if (c.isPlaying) {
                     val pos = c.currentPosition.coerceAtLeast(0L)
                     _now.update { it.copy(positionMs = pos) }
+                    if (++saveTick % 20 == 0) saveSession()
                 }
             }
         }
@@ -859,6 +899,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        saveSession()
         controller?.removeListener(listener)
         controller?.release()
         controller = null
