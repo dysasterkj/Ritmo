@@ -54,6 +54,10 @@ class MainActivity : ComponentActivity() {
 
     /** Desde Spotify, YouTube, etc. se puede "Compartir" una playlist directamente a Ritmo. */
     private fun handleShare(i: Intent?) {
+        if (i?.getBooleanExtra("open_search", false) == true) {
+            i.removeExtra("open_search")
+            vm.requestSearch()
+        }
         if (i?.action == Intent.ACTION_SEND && i.type?.startsWith("text/") == true) {
             i.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }?.let { vm.setPendingImport(it) }
         }

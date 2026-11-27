@@ -128,6 +128,15 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             }
             Label("Curva")
             ChipRow(listOf("Suave", "Corte rápido", "Lineal", "Limpia"), curve) { vm.setMixCurve(it) }
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            var beat by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(com.kjota.ritmo.data.Prefs.getLong(ctx, "mix_beat", 1L) == 1L) }
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Igualar el ritmo (BPM)", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("La canción que entra se ajusta un poco al tempo de la que sale.", color = Pal.Dim, fontSize = 12.sp)
+                }
+                Switch(checked = beat, onCheckedChange = { beat = it; com.kjota.ritmo.data.Prefs.putLong(ctx, "mix_beat", if (it) 1L else 0L) }, colors = switchColors())
+            }
         }
 
         SettingsCard("Audio", "Siempre la mejor calidad que entrega YouTube.") {

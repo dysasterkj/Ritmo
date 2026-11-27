@@ -275,7 +275,7 @@ fun QueuePanel(
             )
         }
     }
-    artistFor?.let { ArtistSheet(vm, it) { artistFor = null } }
+    artistFor?.let { ArtistScreen(vm, it) { artistFor = null } }
 }
 
 /** Menú grande de una canción de la cola (mantener presionada), como en YouTube Music. */

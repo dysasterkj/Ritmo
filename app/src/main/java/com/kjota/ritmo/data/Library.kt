@@ -102,6 +102,18 @@ object Library {
         })
     }
 
+    fun renamePlaylist(pid: String, name: String) = update { s ->
+        val n = name.trim()
+        if (n.isEmpty()) s else s.copy(playlists = s.playlists.map { p -> if (p.id == pid) p.copy(name = n) else p })
+    }
+
+    fun movePlaylistTrack(pid: String, from: Int, to: Int) = update { s ->
+        s.copy(playlists = s.playlists.map { p ->
+            if (p.id != pid || from !in p.tracks.indices || to !in p.tracks.indices) p
+            else p.copy(tracks = p.tracks.toMutableList().also { it.add(to, it.removeAt(from)) })
+        })
+    }
+
     fun deletePlaylist(pid: String) = update { s ->
         s.copy(playlists = s.playlists.filterNot { it.id == pid })
     }

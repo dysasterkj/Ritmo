@@ -130,7 +130,11 @@ object WidgetUpdater {
         )
         rv.setOnClickPendingIntent(R.id.w_root, open)
         rv.setOnClickPendingIntent(R.id.w_cover, open)
-        rv.setOnClickPendingIntent(R.id.w_btn_open, open)
+        val openSearch = PendingIntent.getActivity(
+            app, 101, Intent(app, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("open_search", true),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        rv.setOnClickPendingIntent(R.id.w_btn_open, openSearch)
         fun act(view: Int, action: String, code: Int) =
             rv.setOnClickPendingIntent(view, action(app, action, code))
         act(R.id.w_play, WidgetReceiver.PLAY_PAUSE, 1)

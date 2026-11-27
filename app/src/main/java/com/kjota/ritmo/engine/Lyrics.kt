@@ -41,7 +41,7 @@ object Lyrics {
         }
 
         try {
-            val found = lookup(t)
+            val found = lookup(t) ?: ovh(t)
             if (found == null) {
                 // Solo se recuerda en memoria: si fue un fallo de red, se reintenta al reabrir la app.
                 mem[t.id] = NONE
@@ -103,6 +103,14 @@ object Lyrics {
 
     private fun lookup(t: Track): JSONObject? {
         val (artist, title) = guessArtistAndTitle(t)
+        // 0) Coincidencia exacta (título + artista + duración).
+        try {
+            val dur = if (t.durationSec > 0) "&duration=${t.durationSec}" else ""
+            httpGet("https://lrclib.net/api/get?track_name=${enc(title)}&artist_name=${enc(artist)}$dur")?.let {
+                val o = JSONObject(it)
+                if (o.str("syncedLyrics") != null || o.str("plainLyrics") != null) return o
+            }
+        } catch (_: Exception) { }
         // 1) Búsqueda precisa por título + artista.
         var arr = search("track_name=${enc(title)}&artist_name=${enc(artist)}")
         var best = arr?.let { pick(it, t.durationSec) }
@@ -114,6 +122,16 @@ object Lyrics {
         // 3) Solo el título.
         arr = search("q=${enc(title)}")
         return arr?.let { pick(it, t.durationSec) }
+    }
+
+    /** Respaldo: lyrics.ovh (solo texto, sin tiempos). */
+    private fun ovh(t: Track): JSONObject? {
+        val (artist, title) = guessArtistAndTitle(t)
+        return try {
+            val body = httpGet("https://api.lyrics.ovh/v1/${enc(artist).replace("+", "%20")}/${enc(title).replace("+", "%20")}") ?: return null
+            val text = JSONObject(body).optString("lyrics").trim()
+            if (text.isBlank()) null else JSONObject().put("plainLyrics", text)
+        } catch (_: Exception) { null }
     }
 
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
@@ -153,7 +171,7 @@ object Lyrics {
     /** Los títulos de YouTube vienen sucios ("Artista - Canción (Official Video)"): se limpian para buscar. */
     internal fun guessArtistAndTitle(t: Track): Pair<String, String> {
         var title = t.title.replace(noise, "").replace(Regex("\\s*\\|.*$"), "").trim()
-        var artist = t.artist
+        var artist = com.kjota.ritmo.data.mainArtistOf(t.artist).replace(Regex("\\s*-\\s*Topic$", RegexOption.IGNORE_CASE), "").trim()
         val dash = title.indexOf(" - ")
         if (dash > 0) {
             artist = title.substring(0, dash).trim()

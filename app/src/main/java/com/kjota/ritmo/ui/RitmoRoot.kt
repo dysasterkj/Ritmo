@@ -128,6 +128,16 @@ fun RitmoRoot(vm: MainViewModel) {
         }
     }
 
+    val wantSearch by vm.openSearch.collectAsStateWithLifecycle()
+    LaunchedEffect(wantSearch) {
+        if (wantSearch) {
+            tab = 1
+            collection = null
+            playerOpen = false
+            vm.consumeSearch()
+        }
+    }
+
     LaunchedEffect(Unit) {
         vm.openVideo.collect { playerMode = 2; playerOpen = true }
     }

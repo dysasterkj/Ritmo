@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -107,6 +108,7 @@ fun PlayerScreen(
     val qScope = androidx.compose.runtime.rememberCoroutineScope()
     var rootH by remember { mutableStateOf(0f) }
     var showArtist by remember { mutableStateOf(false) }
+    var showSleep by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         vm.openQueue.collect {
             qFrac.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.85f, stiffness = 420f))
@@ -305,6 +307,16 @@ fun PlayerScreen(
                 ActionChip(if (eqOn) "Ecualizador: sí" else "Ecualizador", eqOn, onOpenEq) {
                     Icon(Icons.Rounded.Tune, null, tint = it, modifier = Modifier.size(22.dp))
                 }
+                val sleepMs by com.kjota.ritmo.player.SleepTimer.remainingMs.collectAsStateWithLifecycle()
+                ActionChip(
+                    when {
+                        sleepMs == -1L -> "Al terminar la canción"
+                        sleepMs > 0 -> "Apagado en ${(sleepMs / 60_000L) + 1} min"
+                        else -> "Temporizador"
+                    },
+                    sleepMs != 0L,
+                    { showSleep = true },
+                ) { Icon(Icons.Rounded.Bedtime, null, tint = it, modifier = Modifier.size(22.dp)) }
             }
             Spacer(Modifier.height(4.dp))
 
@@ -406,7 +418,34 @@ fun PlayerScreen(
             }
         }
         if (qFrac.value > 0.001f) QueuePanel(vm, qFrac, rootH, onPickPlaylist)
-        if (showArtist) ArtistSheet(vm, t.mainArtist) { showArtist = false }
+        if (showSleep) {
+            val st = com.kjota.ritmo.player.SleepTimer
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showSleep = false },
+                containerColor = Color(0xFF1C1C1E),
+                title = { Text("Temporizador de apagado", color = Color.White) },
+                text = {
+                    Column {
+                        listOf(15, 30, 45, 60, 90).forEach { m ->
+                            Text(
+                                "$m minutos", color = Color.White, fontSize = 16.sp,
+                                modifier = Modifier.fillMaxWidth().clickable { st.startMinutes(m); showSleep = false }.padding(vertical = 12.dp),
+                            )
+                        }
+                        Text(
+                            "Al terminar la canción", color = Color.White, fontSize = 16.sp,
+                            modifier = Modifier.fillMaxWidth().clickable { st.endOfSong(); showSleep = false }.padding(vertical = 12.dp),
+                        )
+                        Text(
+                            "Desactivar", color = Pal.Green, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth().clickable { st.cancel(); showSleep = false }.padding(vertical = 12.dp),
+                        )
+                    }
+                },
+                confirmButton = {},
+            )
+        }
+        if (showArtist) ArtistScreen(vm, t.mainArtist) { showArtist = false }
     }
 }
 

@@ -1,5 +1,18 @@
 package com.kjota.ritmo.ui
 
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -176,6 +189,11 @@ fun CollectionScreen(
         else -> (playlist?.name ?: "Playlist") to (playlist?.tracks ?: emptyList())
     }
     var confirmDelete by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var reorder by remember { mutableStateOf(false) }
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragOff by remember { mutableStateOf(0f) }
+    val rowPx = with(androidx.compose.ui.platform.LocalDensity.current) { 64.dp.toPx() }
     // En colecciones propias de la biblioteca no hace falta "radio" automática.
     val radio = false
 
@@ -190,6 +208,12 @@ fun CollectionScreen(
                 Text(title, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (playlist != null) {
+                    IconButton(onClick = { renaming = true }) {
+                        Icon(Icons.Rounded.Edit, "Cambiar nombre", tint = Pal.Dim)
+                    }
+                    IconButton(onClick = { reorder = !reorder }) {
+                        Icon(Icons.Rounded.SwapVert, "Ordenar", tint = if (reorder) Pal.Green else Pal.Dim)
+                    }
                     IconButton(onClick = { confirmDelete = true }) {
                         Icon(Icons.Rounded.Delete, "Eliminar playlist", tint = Pal.Dim)
                     }
@@ -232,6 +256,47 @@ fun CollectionScreen(
                 )
             }
         }
+        if (reorder && playlist != null) {
+            itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
+                val idx by androidx.compose.runtime.rememberUpdatedState(i)
+                val dragging = dragKey == t.id
+                Row(
+                    Modifier
+                        .then(if (dragging) Modifier else Modifier.animateItem())
+                        .fillMaxWidth().height(64.dp)
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationY = if (dragging) dragOff else 0f }
+                        .background(if (dragging) Color(0xFF2A3342) else Color.Transparent)
+                        .padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    coil.compose.AsyncImage(
+                        model = t.thumb, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(width = 80.dp, height = 45.dp).clip(RoundedCornerShape(6.dp)),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(t.title, color = Color.White, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.size(48.dp).pointerInput(t.id) {
+                            androidx.compose.foundation.gestures.detectDragGestures(
+                                onDragStart = { dragKey = t.id; dragOff = 0f },
+                                onDragEnd = { dragKey = null; dragOff = 0f },
+                                onDragCancel = { dragKey = null; dragOff = 0f },
+                            ) { change, amt ->
+                                change.consume()
+                                dragOff += amt.y
+                                if (dragOff > rowPx * 0.5f && idx < tracks.lastIndex) {
+                                    Library.movePlaylistTrack(playlist.id, idx, idx + 1); dragOff -= rowPx
+                                } else if (dragOff < -rowPx * 0.5f && idx > 0) {
+                                    Library.movePlaylistTrack(playlist.id, idx, idx - 1); dragOff += rowPx
+                                }
+                            }
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.DragHandle, "Mover", tint = Pal.Dim) }
+                }
+            }
+        } else
         itemsIndexed(tracks, key = { _, t -> t.id }) { i, t ->
             TrackRow(
                 track = t, vm = vm, isCurrent = t.id == currentId,
@@ -241,6 +306,25 @@ fun CollectionScreen(
                 else emptyList(),
             )
         }
+    }
+
+    if (renaming && playlist != null) {
+        var text by remember(playlist.id) { mutableStateOf(playlist.name) }
+        AlertDialog(
+            onDismissRequest = { renaming = false },
+            containerColor = Color(0xF2151A22),
+            title = { Text("Nombre de la playlist", color = Color.White) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text, onValueChange = { text = it }, singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 16.sp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { Library.renamePlaylist(playlist.id, text); renaming = false }) { Text("Guardar", color = Pal.Green) }
+            },
+            dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancelar", color = Color.White) } },
+        )
     }
 
     if (confirmDelete && playlist != null) {

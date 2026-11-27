@@ -75,6 +75,32 @@ object YouTube {
         parse(YoutubeDL.getInstance().execute(req, null, null).out).filter { it.id != id }
     }
 
+    class AlbumRef(val id: String, val title: String, val thumb: String?)
+
+    /** Álbumes y playlists del artista (búsqueda de YouTube filtrada por "playlists"). */
+    suspend fun artistAlbums(name: String, max: Int = 12): List<AlbumRef> {
+        val q = java.net.URLEncoder.encode("$name álbum", "UTF-8")
+        val (_, entries) = flatList("https://www.youtube.com/results?search_query=$q&sp=EgIQAw%253D%253D", max)
+        val out = ArrayList<AlbumRef>()
+        val seen = HashSet<String>()
+        for (e in entries) {
+            val url = e.optString("url")
+            val id = Regex("list=([A-Za-z0-9_-]+)").find(url)?.groupValues?.get(1)
+                ?: e.optString("id").takeIf { it.length > 12 && (it.startsWith("PL") || it.startsWith("OLAK") || it.startsWith("RD")) }
+                ?: continue
+            if (!seen.add(id)) continue
+            val th = e.optJSONArray("thumbnails")?.let { a -> if (a.length() > 0) a.optJSONObject(a.length() - 1)?.optString("url") else null }
+            out.add(AlbumRef(id, e.optString("title", "Playlist"), th?.takeIf { it.startsWith("http") }))
+        }
+        return out
+    }
+
+    suspend fun playlistTracks(listId: String, max: Int = 100): List<Track> {
+        val (_, entries) = flatList("https://www.youtube.com/playlist?list=$listId", max)
+        val seen = HashSet<String>()
+        return entries.mapNotNull { entryToTrack(it) }.filter { seen.add(it.id) }
+    }
+
     private fun flatOptions(req: YoutubeDLRequest) {
         req.addOption("--flat-playlist")
         req.addOption("-J")

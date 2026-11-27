@@ -226,6 +226,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _undo = MutableSharedFlow<UndoEvent>(extraBufferCapacity = 4)
     val undo: SharedFlow<UndoEvent> = _undo.asSharedFlow()
 
+    private val _openSearch = MutableStateFlow(false)
+    val openSearch: StateFlow<Boolean> = _openSearch.asStateFlow()
+    fun requestSearch() { _openSearch.value = true }
+    fun consumeSearch() { _openSearch.value = false }
+
     private val _openQueue = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val openQueue: SharedFlow<Unit> = _openQueue.asSharedFlow()
     fun requestQueue() { _openQueue.tryEmit(Unit) }
@@ -233,6 +238,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _queue = MutableStateFlow(QueueState())
     val queue: StateFlow<QueueState> = _queue.asStateFlow()
 
+    private var shelvesFromCache = false // declarada antes de init{}
     private var radioEnabled = true
     private var radioFor: String? = null
     private val _qMode = MutableStateFlow(0)
@@ -270,6 +276,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     init {
         connect()
+        loadShelvesCache()
         loadShelves()
         startPositionTicker()
         startBackgroundPrep()
@@ -677,9 +684,40 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Pull-to-refresh: cada vez arma estantes distintas (otros géneros, otros términos, otro orden). */
+    private val shelvesCacheFile get() = java.io.File(app.filesDir, "home_cache.json")
+
+    /** Guarda la portada de Inicio para mostrarla al instante (y sin conexión) la próxima vez. */
+    private fun saveShelvesCache(list: List<Shelf>) {
+        val json = org.json.JSONArray().also { arr ->
+            list.forEach { sh ->
+                arr.put(
+                    org.json.JSONObject().put("title", sh.title)
+                        .put("tracks", org.json.JSONArray().also { ta -> sh.tracks.forEach { ta.put(it.toJson()) } })
+                )
+            }
+        }.toString()
+        viewModelScope.launch(Dispatchers.IO) { try { shelvesCacheFile.writeText(json) } catch (_: Throwable) { } }
+    }
+
+    private fun loadShelvesCache() {
+        try {
+            val f = shelvesCacheFile
+            if (!f.exists()) return
+            val arr = org.json.JSONArray(f.readText())
+            val out = ArrayList<Shelf>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val ta = o.getJSONArray("tracks")
+                val tracks = (0 until ta.length()).mapNotNull { try { Track.fromJson(ta.getJSONObject(it)) } catch (_: Throwable) { null } }
+                if (tracks.isNotEmpty()) out.add(Shelf(o.optString("title"), tracks))
+            }
+            if (out.isNotEmpty()) { shelvesFromCache = true; _shelves.value = out }
+        } catch (_: Throwable) { }
+    }
+
     fun loadShelves(force: Boolean = false) {
         if (_shelvesLoading.value) return
-        if (!force && _shelves.value.isNotEmpty()) return
+        if (!force && _shelves.value.isNotEmpty() && !shelvesFromCache) return
         _shelvesLoading.value = true
         viewModelScope.launch {
             val fresh = ArrayList<Pair<Int, Shelf>>()
@@ -687,6 +725,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             suspend fun publish(order: Int, shelf: Shelf) = lock.withLock {
                 val clean = shelf.tracks.filter { !Taste.isBlocked(it) }
                 if (clean.isEmpty()) return@withLock
+                shelvesFromCache = false
                 fresh.add(order to shelf.copy(tracks = clean))
                 _shelves.value = fresh.sortedBy { it.first }.map { it.second }
             }
@@ -729,6 +768,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 })
             }
             jobs.forEach { it.join() }
+            if (mood == 0 && fresh.isNotEmpty()) saveShelvesCache(_shelves.value)
             _shelvesLoading.value = false
         }
     }

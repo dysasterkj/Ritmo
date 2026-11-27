@@ -58,3 +58,12 @@ Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión
 - `data/Taste.kt`: 👎 bloquea canción + artista; palabras bloqueadas editables (Ajustes → Filtro de contenido); palabras extra si la semilla es de "despertar". Filtra el radio (`maybeExtendWithRadio`) y las estantes de Inicio. No filtra las búsquedas.
 - Cola: `MainViewModel.queue` (QueueState) + `ui/QueueSheet.kt` (ModalBottomSheet "A continuación", se abre arrastrando el asa inferior del reproductor). El radio se encadena desde la ÚLTIMA canción para mantener ≥15 por delante, máx. 2 por artista, sin títulos repetidos.
 - `AudioFx`: una cadena de efectos (EQ/Bass/Loudness) por ReproductorExo (cada uno su sesión de audio); antes compartían sesión y el limitador bombeaba durante el Mix DJ.
+
+## Novedades (artista, temporizador, caché, BPM)
+- `ui/ArtistScreen.kt`: página de artista (Dialog a pantalla completa): populares, álbumes (`YouTube.artistAlbums`/`playlistTracks`), reproducir/mezclar/no recomendar.
+- `player/SleepTimer.kt`: temporizador de apagado (minutos o al terminar la canción, con fade). Chip "Temporizador" en el reproductor.
+- Inicio sin conexión: `filesDir/home_cache.json` (`shelvesFromCache` en MainViewModel, declarado ANTES de `init`).
+- Playlists: renombrar y reordenar (`Library.renamePlaylist`, `movePlaylistTrack`) en `CollectionScreen`.
+- Mix DJ: `engine/Bpm.kt` (BPM vía Deezer) + `mixRatio` en PlaybackService (±10 % con setPlaybackSpeed); pref `mix_beat`. Es aproximado, no alinea el compás.
+- Widget "Buscar": extra `open_search` → `vm.openSearch` → RitmoRoot abre la pestaña Búsqueda.
+- Letras: LRCLIB `/api/get` → `/api/search` → respaldo lyrics.ovh (sin tiempos).
