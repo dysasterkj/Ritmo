@@ -49,6 +49,8 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -171,6 +173,7 @@ fun TvRoot(vm: MainViewModel) {
                 vm, playerMode, { playerMode = it }, video,
                 onClose = { playerOpen = false },
                 onScreenOff = { playerMode = 0; screenOff = true },
+                onPickPlaylist = { pick = it },
                 onFullLyrics = { lyricsFull = true },
                 onVideoFull = { videoFull = true },
             )
@@ -502,6 +505,7 @@ private fun TvPlayer(
     video: VideoState?,
     onClose: () -> Unit,
     onScreenOff: () -> Unit,
+    onPickPlaylist: (Track) -> Unit,
     onFullLyrics: () -> Unit,
     onVideoFull: () -> Unit,
 ) {
@@ -518,6 +522,10 @@ private fun TvPlayer(
             kotlinx.coroutines.delay(250)
             try { focus.requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
         }
+    }
+    LaunchedEffect(now.track?.id, mode) {
+        kotlinx.coroutines.delay(500)
+        try { focus.requestFocus() } catch (_: Throwable) { }
     }
 
     Box(Modifier.fillMaxSize().background(Pal.Ink).pointerInput(Unit) { detectTapGestures { } }.focusRequester(focus).focusable()) {
@@ -588,23 +596,25 @@ private fun TvPlayer(
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(Icons.Rounded.SkipPrevious, "Anterior") { vm.previous() }
                     TvButton(Icons.Rounded.Replay10, "Retroceder 10 s") { if (vOn) video!!.seekBy(-10_000) else vm.seekTo((now.positionMs - 10_000).coerceAtLeast(0L)) }
-                    if (buffering && !playing) {
-                        Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(34.dp))
-                        }
-                    } else {
-                        TvButton(
-                            if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            if (playing) "Pausa" else "Reproducir", big = true,
-                        ) { if (vOn) video!!.togglePlay() else vm.togglePlay() }
-                    }
+                    TvButton(
+                        if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        if (playing) "Pausa" else "Reproducir", big = true,
+                    ) { if (vOn) video!!.togglePlay() else vm.togglePlay() }
                     TvButton(Icons.Rounded.Forward10, "Adelantar 10 s") { if (vOn) video!!.seekBy(10_000) else vm.seekTo(now.positionMs + 10_000) }
                     TvButton(Icons.Rounded.SkipNext, "Siguiente") { vm.next() }
                 }
                 Spacer(Modifier.height(16.dp))
+                val downloaded = lib.downloads.any { it.id == t.id }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Favorita", active = liked) { vm.toggleLike(t) }
+                    TvButton(Icons.Rounded.PlaylistAdd, "Guardar en playlist") { onPickPlaylist(t) }
+                    TvButton(if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, "Descargar", active = downloaded) {
+                        if (downloaded) vm.removeDownload(t) else vm.download(t)
+                    }
                     TvButton(Icons.Rounded.Shuffle, "Aleatorio", active = now.shuffle) { vm.toggleShuffle() }
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(
                         if (now.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                         "Repetir", active = now.repeatMode != Player.REPEAT_MODE_OFF,
