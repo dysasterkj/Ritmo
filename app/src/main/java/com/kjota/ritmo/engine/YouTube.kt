@@ -134,7 +134,44 @@ object YouTube {
         if (live == "is_live" || live == "is_upcoming") return null
         if (dur > maxSec) return null // evita mixes larguísimos y transmisiones
         val artist = (e.str("channel") ?: e.str("uploader") ?: "YouTube").removeSuffix(" - Topic")
-        return Track(id, e.optString("title", "Sin título"), artist, dur)
+        return Track(id, e.optString("title", "Sin título"), artist, dur).also { metaMap[id] = it }
+    }
+
+    // --- Audio "solo música": si la canción es un video oficial, se busca su versión de audio (canal "- Topic").
+    private val metaMap = ConcurrentHashMap<String, Track>()
+    private val twins = ConcurrentHashMap<String, String>()
+    private val videoWords = Regex(
+        "official (music )?video|video oficial|videoclip|clip oficial|music video|\\(video\\)|\\[video\\]|\\blive\\b|en vivo|visuali[sz]er",
+        RegexOption.IGNORE_CASE,
+    )
+    private val tidy = Regex("[^\\p{L}\\p{N}]+")
+
+    /** Id a reproducir en modo audio: el mismo, o el de la versión de estudio si el original es un video. */
+    fun audioTwin(id: String): String {
+        twins[id]?.let { return it }
+        val t = metaMap[id] ?: return id
+        if (!videoWords.containsMatchIn(t.title)) { twins[id] = id; return id }
+        val (artist, title) = com.kjota.ritmo.engine.Lyrics.guessArtistAndTitle(t)
+        var found = id
+        try {
+            val q = java.net.URLEncoder.encode("$artist $title", "UTF-8")
+            val (_, entries) = kotlinx.coroutines.runBlocking {
+                flatList("https://www.youtube.com/results?search_query=$q+topic", 12)
+            }
+            val want = title.lowercase().replace(tidy, "")
+            for (e in entries) {
+                val cid = e.optString("id")
+                if (cid.length != 11 || cid == id) continue
+                val ch = e.optString("channel").ifBlank { e.optString("uploader") }
+                if (!ch.endsWith(" - Topic")) continue
+                val ct = e.optString("title").lowercase().replace(tidy, "")
+                val d = e.optDouble("duration", 0.0)
+                val okDur = t.durationSec <= 0 || d <= 0 || kotlin.math.abs(d - t.durationSec) <= 75
+                if (okDur && ct.isNotEmpty() && (ct.contains(want) || want.contains(ct))) { found = cid; break }
+            }
+        } catch (_: Throwable) { }
+        twins[id] = found
+        return found
     }
 
     /** Lista plana de cualquier enlace que yt-dlp entienda: (título de la lista, entradas crudas). */
@@ -160,7 +197,8 @@ object YouTube {
     /** Dirección directa del audio (bloqueante: se llama desde el hilo de carga del reproductor). */
     private val locks = ConcurrentHashMap<String, Any>()
 
-    fun streamUrl(id: String, quickOnly: Boolean = false): String {
+    fun streamUrl(id0: String, quickOnly: Boolean = false): String {
+        val id = if (quickOnly) (twins[id0] ?: id0) else audioTwin(id0)
         fresh(id)?.let { return it }
         // Un solo cálculo por canción: si ya se está resolviendo (precarga), se espera ese resultado.
         synchronized(locks.getOrPut(id) { Any() }) {
