@@ -335,14 +335,21 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
     var landscape by remember { mutableStateOf(true) }
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     val focus = remember { FocusRequester() }
+    val tv = isTv(androidx.compose.ui.platform.LocalContext.current)
+    val playFocus = remember { FocusRequester() }
 
     KeepScreenOn()
     SystemUi(hideBars = true, landscape = landscape)
     BackHandler { onClose() }
 
-    LaunchedEffect(Unit) { try { focus.requestFocus() } catch (_: Throwable) { } }
+    LaunchedEffect(Unit) {
+        repeat(6) {
+            delay(300)
+            try { (if (tv) playFocus else focus).requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
+        }
+    }
     LaunchedEffect(controls, touch, v.playing) {
-        if (controls && v.playing) {
+        if (controls && v.playing && !tv) {
             delay(3500)
             controls = false
         }
@@ -361,9 +368,10 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                     controls = true
                     touch++
                     when (e.key) {
-                        Key.DirectionRight -> { v.seekBy(SEEK_MS); true }
-                        Key.DirectionLeft -> { v.seekBy(-SEEK_MS); true }
-                        Key.DirectionCenter, Key.Enter, Key.MediaPlayPause, Key.Spacebar -> { v.togglePlay(); true }
+                        Key.DirectionRight -> if (tv) false else { v.seekBy(SEEK_MS); true }
+                        Key.DirectionLeft -> if (tv) false else { v.seekBy(-SEEK_MS); true }
+                        Key.MediaPlayPause -> { v.togglePlay(); true }
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> if (tv) false else { v.togglePlay(); true }
                         else -> false
                     }
                 }
@@ -398,9 +406,7 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Rounded.KeyboardArrowDown, "Salir de pantalla completa", tint = Color.White, modifier = Modifier.size(32.dp))
-                        }
+                        FsBtn(Icons.Rounded.KeyboardArrowDown, "Salir de pantalla completa", 32.dp) { onClose() }
                         Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
                             Text(
                                 track?.title.orEmpty(), color = Color.White, fontWeight = FontWeight.Bold,
@@ -417,17 +423,14 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = { vm.prevTrack(); touch++ }) {
-                        Icon(Icons.Rounded.SkipPrevious, "Anterior", tint = Color.White, modifier = Modifier.size(38.dp))
-                    }
-                    IconButton(onClick = { v.seekBy(-SEEK_MS); touch++ }) {
-                        Icon(Icons.Rounded.Replay10, "Retroceder 10 segundos", tint = Color.White, modifier = Modifier.size(36.dp))
-                    }
+                    FsBtn(Icons.Rounded.SkipPrevious, "Anterior", 38.dp) { vm.prevTrack(); touch++ }
+                    FsBtn(Icons.Rounded.Replay10, "Retroceder 10 segundos", 36.dp) { v.seekBy(-SEEK_MS); touch++ }
                     Box(
                         Modifier
                             .size(68.dp)
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.92f))
+                            .focusRequester(playFocus)
                             .tvClickable(CircleShape) { v.togglePlay(); touch++ },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -437,12 +440,8 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                             tint = Color.Black, modifier = Modifier.size(40.dp),
                         )
                     }
-                    IconButton(onClick = { v.seekBy(SEEK_MS); touch++ }) {
-                        Icon(Icons.Rounded.Forward10, "Adelantar 10 segundos", tint = Color.White, modifier = Modifier.size(36.dp))
-                    }
-                    IconButton(onClick = { vm.next(); touch++ }) {
-                        Icon(Icons.Rounded.SkipNext, "Siguiente", tint = Color.White, modifier = Modifier.size(38.dp))
-                    }
+                    FsBtn(Icons.Rounded.Forward10, "Adelantar 10 segundos", 36.dp) { v.seekBy(SEEK_MS); touch++ }
+                    FsBtn(Icons.Rounded.SkipNext, "Siguiente", 38.dp) { vm.next(); touch++ }
                 }
 
                 Column(
@@ -470,15 +469,18 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                             formatTime((shown / 1000).toInt()) + " / " + formatTime((v.dur / 1000).toInt()),
                             color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f),
                         )
-                        IconButton(onClick = { landscape = !landscape; touch++ }) {
-                            Icon(
-                                if (landscape) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-                                "Girar pantalla", tint = Color.White, modifier = Modifier.size(30.dp),
-                            )
-                        }
+                        if (!tv) FsBtn(if (landscape) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, "Girar pantalla", 30.dp) { landscape = !landscape; touch++ }
                     }
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun FsBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Box(Modifier.size(size + 22.dp).clip(CircleShape).tvClickable(CircleShape, onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, desc, tint = Color.White, modifier = Modifier.size(size))
     }
 }

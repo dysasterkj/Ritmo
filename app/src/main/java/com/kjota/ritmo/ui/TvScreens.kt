@@ -159,6 +159,7 @@ fun TvRoot(vm: MainViewModel) {
                 }
                 now.track?.let { t ->
                     TvNowBar(vm, t, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 16.dp)) {
+                        playerMode = 2
                         playerOpen = true
                     }
                 }
