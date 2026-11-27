@@ -138,6 +138,10 @@ fun rememberVideoState(vm: MainViewModel): VideoState {
         val l = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) vm.next()
+                if (state == Player.STATE_READY) st.error = null
+            }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) st.error = null
             }
         }
         st.player.addListener(l)
@@ -176,6 +180,8 @@ fun rememberVideoState(vm: MainViewModel): VideoState {
             player.setMediaSource(src, startAt.coerceAtLeast(0L))
             player.prepare()
             player.playWhenReady = wasPlaying
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Throwable) {
             st.error = "No se pudo cargar el video. Revisa tu conexión o actualiza el motor en Ajustes."
         }
@@ -248,7 +254,8 @@ private fun LoadingAndError(v: VideoState, boxScope: androidx.compose.foundation
         }
         v.error?.let { msg ->
             Column(
-                Modifier.align(Alignment.Center).padding(20.dp),
+                Modifier.align(Alignment.TopCenter).padding(top = 72.dp, start = 20.dp, end = 20.dp)
+                    .clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.6f)).padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -361,9 +368,14 @@ fun VideoFullScreen(
             try { (if (tv) playFocus else focus).requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
         }
     }
+    LaunchedEffect(controls) {
+        if (!tv) return@LaunchedEffect
+        delay(if (controls) 350 else 120)
+        try { (if (controls) playFocus else focus).requestFocus() } catch (_: Throwable) { }
+    }
     LaunchedEffect(controls, touch, v.playing) {
-        if (controls && v.playing && !tv) {
-            delay(3500)
+        if (controls && v.playing) {
+            delay(if (tv) 6000 else 3500)
             controls = false
         }
     }
@@ -377,6 +389,10 @@ fun VideoFullScreen(
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) {
                     false
+                } else if (tv && !controls && e.key != Key.Back) {
+                    controls = true
+                    touch++
+                    true
                 } else {
                     controls = true
                     touch++
