@@ -75,7 +75,7 @@ fun TrackMenu(
         ) { onDismiss(); vm.toggleLike(track) }
         if (downloaded) {
             MenuItem("Eliminar descarga", Icons.Rounded.Delete) { onDismiss(); vm.removeDownload(track) }
-        } else if (percent == null) {
+        } else if (percent == null && !isTv(androidx.compose.ui.platform.LocalContext.current)) {
             MenuItem("Descargar", Icons.Rounded.Download) { onDismiss(); vm.download(track) }
         }
         MenuItem("Ver video", Icons.Rounded.Videocam) { onDismiss(); vm.watchVideo(track) }

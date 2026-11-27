@@ -189,7 +189,7 @@ fun TrackRow(
                 if (downloaded) {
                     MenuItem("Eliminar descarga", Icons.Rounded.Delete) { menu = false; vm.removeDownload(track) }
                 } else if (percent == null) {
-                    MenuItem("Descargar", Icons.Rounded.Download) { menu = false; vm.download(track) }
+                    if (!isTv(androidx.compose.ui.platform.LocalContext.current)) MenuItem("Descargar", Icons.Rounded.Download) { menu = false; vm.download(track) }
                 }
                 MenuItem("Ver video", Icons.Rounded.Videocam) { menu = false; vm.watchVideo(track) }
                 MenuItem("Agregar a playlist", Icons.Rounded.PlaylistAdd) { menu = false; onPickPlaylist(track) }

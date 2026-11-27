@@ -544,9 +544,13 @@ private fun TvPlayer(
 
         val q by vm.queue.collectAsStateWithLifecycle()
         val upNext = remember(q) { q.items.withIndex().drop(q.index + 1).take(25).toList() }
-        if (upNext.isNotEmpty()) {
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) {
-                Text("A continuación", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 56.dp, bottom = 6.dp))
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) {
+            Text("A continuación", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 56.dp, bottom = 6.dp))
+            if (upNext.isEmpty()) {
+                Box(Modifier.fillMaxWidth().height(100.dp).padding(start = 56.dp), contentAlignment = Alignment.CenterStart) {
+                    CircularProgressIndicator(color = Pal.Green, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                }
+            } else {
                 LazyRow(contentPadding = PaddingValues(horizontal = 56.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(upNext.size) { i ->
                         val (idx, tr) = upNext[i]
@@ -559,7 +563,7 @@ private fun TvPlayer(
             }
         }
         Row(
-            Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp, bottom = if (upNext.isNotEmpty()) 150.dp else 36.dp),
+            Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp, bottom = 150.dp),
             horizontalArrangement = Arrangement.spacedBy(48.dp),
         ) {
             // Izquierda: carátula, letra o video
@@ -604,13 +608,9 @@ private fun TvPlayer(
                     TvButton(Icons.Rounded.SkipNext, "Siguiente") { vm.next() }
                 }
                 Spacer(Modifier.height(16.dp))
-                val downloaded = lib.downloads.any { it.id == t.id }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Favorita", active = liked) { vm.toggleLike(t) }
                     TvButton(Icons.Rounded.PlaylistAdd, "Guardar en playlist") { onPickPlaylist(t) }
-                    TvButton(if (downloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download, "Descargar", active = downloaded) {
-                        if (downloaded) vm.removeDownload(t) else vm.download(t)
-                    }
                     TvButton(Icons.Rounded.Shuffle, "Aleatorio", active = now.shuffle) { vm.toggleShuffle() }
                 }
                 Spacer(Modifier.height(10.dp))
