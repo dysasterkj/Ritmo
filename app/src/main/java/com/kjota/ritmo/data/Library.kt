@@ -32,7 +32,7 @@ object Library {
     fun init(ctx: Context) {
         if (ready) return
         val base = ctx.applicationContext.filesDir
-        file = File(base, "library.json")
+        file = File(Profiles.dir(ctx), "library.json")
         musicDir = File(base, "music").also { it.mkdirs() }
         _state.value = load()
         // Quita de la lista las descargas cuyo archivo ya no existe.

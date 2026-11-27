@@ -35,7 +35,7 @@ object Taste {
     @Synchronized
     fun init(ctx: Context) {
         if (file != null) return
-        val f = File(ctx.applicationContext.filesDir, "taste.json")
+        val f = File(Profiles.dir(ctx), "taste.json")
         file = f
         try {
             if (f.exists()) {

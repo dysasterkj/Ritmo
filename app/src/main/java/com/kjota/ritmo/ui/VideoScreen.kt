@@ -261,7 +261,7 @@ private fun LoadingAndError(v: VideoState, boxScope: androidx.compose.foundation
 
 /** Video dentro del reproductor (en el lugar de la carátula, como en YouTube Music). */
 @Composable
-fun VideoInline(vm: MainViewModel, v: VideoState, onFullscreen: () -> Unit, modifier: Modifier = Modifier) {
+fun VideoInline(vm: MainViewModel, v: VideoState, onFullscreen: () -> Unit, modifier: Modifier = Modifier, overlayControls: Boolean = true) {
     val height by vm.videoHeight.collectAsStateWithLifecycle()
     var controls by remember { mutableStateOf(true) }
     var touch by remember { mutableIntStateOf(0) }
@@ -296,7 +296,7 @@ fun VideoInline(vm: MainViewModel, v: VideoState, onFullscreen: () -> Unit, modi
                 },
         )
         LoadingAndError(v, this)
-        AnimatedVisibility(visible = controls, enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(visible = controls && overlayControls, enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f))) {
                 Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) { QualityChip(height, vm) { touch++ } }
                 Box(

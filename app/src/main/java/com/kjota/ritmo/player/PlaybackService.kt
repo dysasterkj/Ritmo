@@ -360,7 +360,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
-    private val sessionFile get() = java.io.File(filesDir, "last_session.json")
+    private val sessionFile get() = java.io.File(com.kjota.ritmo.data.Profiles.dir(this), "last_session.json")
 
     private fun saveLastSession() {
         try {

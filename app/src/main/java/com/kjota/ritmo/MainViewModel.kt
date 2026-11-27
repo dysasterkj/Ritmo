@@ -210,7 +210,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _mood = MutableStateFlow(0)
     val mood: StateFlow<Int> = _mood.asStateFlow()
 
-    private val _videoHeight = MutableStateFlow(Prefs.getLong(app, "video_h", 1080L).toInt())
+    private val _videoHeight = MutableStateFlow(Prefs.getLong(app, "video_h", if (com.kjota.ritmo.ui.isTv(app)) 720L else 1080L).toInt())
     val videoHeight: StateFlow<Int> = _videoHeight.asStateFlow()
 
     private val _openVideo = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -230,6 +230,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     val openSearch: StateFlow<Boolean> = _openSearch.asStateFlow()
     fun requestSearch() { _openSearch.value = true }
     fun consumeSearch() { _openSearch.value = false }
+
+    private val _userPlay = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val userPlay: SharedFlow<Unit> = _userPlay.asSharedFlow()
 
     private val _openQueue = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val openQueue: SharedFlow<Unit> = _openQueue.asSharedFlow()
@@ -316,7 +319,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private val sessionFile get() = java.io.File(app.filesDir, "last_session.json")
+    private val sessionFile get() = java.io.File(com.kjota.ritmo.data.Profiles.dir(app), "last_session.json")
 
     /** Guarda la cola y el punto exacto de la canción para retomarla al volver a abrir la app. */
     private fun saveSession() {
@@ -488,6 +491,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         c.setMediaItems(tracks.map { it.toMediaItem() }, index.coerceIn(0, tracks.lastIndex), 0L)
         c.prepare()
         c.play()
+        _userPlay.tryEmit(Unit)
     }
 
     /** Desde la búsqueda: suena solo la elegida y sigue el mix de YouTube (parecidas, otros artistas, versiones). */
@@ -684,7 +688,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Pull-to-refresh: cada vez arma estantes distintas (otros géneros, otros términos, otro orden). */
-    private val shelvesCacheFile get() = java.io.File(app.filesDir, "home_cache.json")
+    private val shelvesCacheFile get() = java.io.File(com.kjota.ritmo.data.Profiles.dir(app), "home_cache.json")
 
     /** Guarda la portada de Inicio para mostrarla al instante (y sin conexión) la próxima vez. */
     private fun saveShelvesCache(list: List<Shelf>) {

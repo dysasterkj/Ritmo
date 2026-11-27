@@ -141,7 +141,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             }
         }
 
-        SettingsCard("Audio", "Siempre la mejor calidad que entrega YouTube.") {
+        if (!isTv(androidx.compose.ui.platform.LocalContext.current)) SettingsCard("Audio", "Siempre la mejor calidad que entrega YouTube.") {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -153,6 +153,44 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             ) {
                 Text("Ecualizador", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(if (eqOn) "Activado" else "Apagado", color = if (eqOn) Pal.Green else Pal.Dim, fontSize = 13.sp)
+            }
+        }
+
+        run {
+            val pctx = androidx.compose.ui.platform.LocalContext.current
+            val plist = androidx.compose.runtime.remember { com.kjota.ritmo.data.Profiles.list(pctx) }
+            var addOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            var newName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+            val curId = com.kjota.ritmo.data.Profiles.currentId(pctx)
+            SettingsCard("Perfiles", "Cada perfil tiene sus propias favoritas, recientes y gustos. Sin cuenta ni contraseña. Al cambiar, la app se reinicia.") {
+                ChipRow(plist.map { it.name }, plist.indexOfFirst { it.id == curId }) { com.kjota.ritmo.data.Profiles.switchTo(pctx, plist[it].id) }
+                Text(
+                    "Nuevo perfil",
+                    color = Color(0xFF00210B), fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 10.dp).clip(RoundedCornerShape(50)).background(Pal.Green)
+                        .tvClickable(RoundedCornerShape(50)) { newName = ""; addOpen = true }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+            }
+            if (addOpen) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { addOpen = false },
+                    title = { Text("Nuevo perfil") },
+                    text = {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = newName, onValueChange = { newName = it.take(20) }, singleLine = true,
+                            placeholder = { Text("Nombre") },
+                        )
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            val p = com.kjota.ritmo.data.Profiles.add(pctx, newName)
+                            addOpen = false
+                            com.kjota.ritmo.data.Profiles.switchTo(pctx, p.id)
+                        }) { Text("Crear y cambiar") }
+                    },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { addOpen = false }) { Text("Cancelar") } },
+                )
             }
         }
 

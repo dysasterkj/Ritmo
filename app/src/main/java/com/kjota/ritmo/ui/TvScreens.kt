@@ -3,6 +3,7 @@ package com.kjota.ritmo.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -66,11 +67,13 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -109,16 +112,20 @@ fun TvRoot(vm: MainViewModel) {
     var videoFull by rememberSaveable { mutableStateOf(false) }
     var lyricsFull by rememberSaveable { mutableStateOf(false) }
     var eqOpen by remember { mutableStateOf(false) }
+    var screenOff by remember { mutableStateOf(false) }
+    var profileChosen by rememberSaveable { mutableStateOf(com.kjota.ritmo.data.Profiles.list(ctx, "Televisión").size <= 1) }
     var pick by remember { mutableStateOf<Track?>(null) }
     var importOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { vm.openVideo.collect { playerMode = 2; playerOpen = true } }
+    LaunchedEffect(Unit) { vm.userPlay.collect { playerMode = 2; playerOpen = true } }
     LaunchedEffect(Unit) { Updater.checkAsync(ctx, manual = false) }
     LaunchedEffect(playerOpen) { if (!playerOpen && !videoFull) playerMode = 0 }
 
     val videoActive = (playerOpen && playerMode == 2) || videoFull
     val video = if (videoActive) rememberVideoState(vm) else null
 
+    BackHandler(enabled = screenOff) { screenOff = false }
     BackHandler(enabled = videoFull || lyricsFull || eqOpen || playerOpen || collection != null || tab != 0) {
         when {
             videoFull -> videoFull = false
@@ -130,8 +137,9 @@ fun TvRoot(vm: MainViewModel) {
         }
     }
 
+    val overlay = playerOpen || eqOpen || lyricsFull || videoFull || screenOff || !profileChosen
     AuroraBackground {
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize().focusProperties { canFocus = !overlay }) {
             TvRail(tab) { tab = it; collection = null }
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val open = collection
@@ -156,7 +164,7 @@ fun TvRoot(vm: MainViewModel) {
             TvPlayer(
                 vm, playerMode, { playerMode = it }, video,
                 onClose = { playerOpen = false },
-                onOpenEq = { eqOpen = true },
+                onScreenOff = { playerMode = 0; screenOff = true },
                 onFullLyrics = { lyricsFull = true },
                 onVideoFull = { videoFull = true },
             )
@@ -164,10 +172,73 @@ fun TvRoot(vm: MainViewModel) {
         AnimatedVisibility(visible = eqOpen) { EqualizerScreen(vm, onClose = { eqOpen = false }) }
         if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
         if (videoFull && video != null) VideoFullScreen(vm, video, onClose = { videoFull = false })
+        if (screenOff) ScreenOffOverlay { screenOff = false }
+        if (!profileChosen) TvProfilePicker { id ->
+            if (id == com.kjota.ritmo.data.Profiles.currentId(ctx)) profileChosen = true
+            else com.kjota.ritmo.data.Profiles.switchTo(ctx, id)
+        }
     }
 
     pick?.let { PlaylistPicker(it, vm) { pick = null } }
     if (importOpen) ImportDialog(vm, initial = "") { importOpen = false }
+}
+
+/** Elegir perfil al abrir la app en el TV (solo si hay más de uno). */
+@Composable
+private fun TvProfilePicker(onPick: (String) -> Unit) {
+    val ctx = LocalContext.current
+    val list = remember { com.kjota.ritmo.data.Profiles.list(ctx, "Televisión") }
+    val cur = com.kjota.ritmo.data.Profiles.currentId(ctx)
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(6) {
+            kotlinx.coroutines.delay(250)
+            try { focus.requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
+        }
+    }
+    Column(
+        Modifier.fillMaxSize().background(Pal.Ink).pointerInput(Unit) { detectTapGestures { } },
+        verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("¿Quién escucha?", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp)
+        Spacer(Modifier.height(28.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            list.forEach { p ->
+                Column(
+                    Modifier.clip(RoundedCornerShape(18.dp))
+                        .then(if (p.id == cur) Modifier.focusRequester(focus) else Modifier)
+                        .tvClickable(RoundedCornerShape(18.dp)) { onPick(p.id) }.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(Modifier.size(96.dp).clip(CircleShape).background(Pal.Green.copy(alpha = 0.85f)), contentAlignment = Alignment.Center) {
+                        Text(p.name.take(1).uppercase(), color = Color(0xFF00210B), fontWeight = FontWeight.ExtraBold, fontSize = 40.sp)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(p.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+/** Pantalla negra mientras suena la música; cualquier tecla del control la vuelve a encender. */
+@Composable
+private fun ScreenOffOverlay(onWake: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(6) {
+            kotlinx.coroutines.delay(200)
+            try { focus.requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
+        }
+    }
+    Box(
+        Modifier.fillMaxSize().background(Color.Black)
+            .pointerInput(Unit) { detectTapGestures { onWake() } }
+            .focusRequester(focus).focusable()
+            .onKeyEvent { e ->
+                if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) { onWake(); true } else false
+            },
+    )
 }
 
 @Composable
@@ -410,7 +481,7 @@ private fun TvPlayer(
     onMode: (Int) -> Unit,
     video: VideoState?,
     onClose: () -> Unit,
-    onOpenEq: () -> Unit,
+    onScreenOff: () -> Unit,
     onFullLyrics: () -> Unit,
     onVideoFull: () -> Unit,
 ) {
@@ -422,9 +493,14 @@ private fun TvPlayer(
     val vOn = video != null && mode == 2
     val focus = remember { FocusRequester() }
     if (mode != 0) KeepScreenOn()
-    LaunchedEffect(Unit) { try { focus.requestFocus() } catch (_: Throwable) { } }
+    LaunchedEffect(Unit) {
+        repeat(6) {
+            kotlinx.coroutines.delay(250)
+            try { focus.requestFocus(); return@LaunchedEffect } catch (_: Throwable) { }
+        }
+    }
 
-    Box(Modifier.fillMaxSize().background(Pal.Ink).pointerInput(Unit) { detectTapGestures { } }) {
+    Box(Modifier.fillMaxSize().background(Pal.Ink).pointerInput(Unit) { detectTapGestures { } }.focusRequester(focus).focusable()) {
         if (t == null) return@Box
         AsyncImage(
             model = t.thumbHq, contentDescription = null, contentScale = ContentScale.Crop,
@@ -438,8 +514,24 @@ private fun TvPlayer(
         val playing = if (vOn) video!!.playing else now.isPlaying
         val buffering = if (vOn) (video!!.loading || video.buffering) else now.buffering
 
+        val q by vm.queue.collectAsStateWithLifecycle()
+        val upNext = remember(q) { q.items.withIndex().drop(q.index + 1).take(25).toList() }
+        if (upNext.isNotEmpty()) {
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 16.dp)) {
+                Text("A continuación", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(start = 56.dp, bottom = 6.dp))
+                LazyRow(contentPadding = PaddingValues(horizontal = 56.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(upNext.size) { i ->
+                        val (idx, tr) = upNext[i]
+                        Column(Modifier.width(172.dp).tvClickable(RoundedCornerShape(10.dp)) { vm.playAt(idx) }.padding(2.dp)) {
+                            Cover(tr.thumb, Modifier.fillMaxWidth().aspectRatio(16f / 9f), 8)
+                            Text(tr.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                        }
+                    }
+                }
+            }
+        }
         Row(
-            Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 36.dp),
+            Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp, bottom = if (upNext.isNotEmpty()) 150.dp else 36.dp),
             horizontalArrangement = Arrangement.spacedBy(48.dp),
         ) {
             // Izquierda: carátula, letra o video
@@ -447,7 +539,7 @@ private fun TvPlayer(
                 when (mode) {
                     1 -> LyricsPanel(vm, t, now.positionMs, Modifier.fillMaxSize(), big = true)
                     2 -> if (video != null) {
-                        VideoInline(vm, video, onFullscreen = onVideoFull)
+                        VideoInline(vm, video, onFullscreen = onVideoFull, overlayControls = false)
                     } else {
                         CircularProgressIndicator(color = Pal.Green, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
                     }
@@ -484,7 +576,6 @@ private fun TvPlayer(
                         TvButton(
                             if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             if (playing) "Pausa" else "Reproducir", big = true,
-                            modifier = Modifier.focusRequester(focus),
                         ) { if (vOn) video!!.togglePlay() else vm.togglePlay() }
                     }
                     TvButton(Icons.Rounded.Forward10, "Adelantar 10 s") { if (vOn) video!!.seekBy(10_000) else vm.seekTo(now.positionMs + 10_000) }
@@ -499,7 +590,7 @@ private fun TvPlayer(
                         "Repetir", active = now.repeatMode != Player.REPEAT_MODE_OFF,
                     ) { vm.cycleRepeat() }
                     TvButton(Icons.Rounded.GraphicEq, "Mix DJ", active = mixOn) { vm.setMix(!mixOn) }
-                    TvButton(Icons.Rounded.Tune, "Ecualizador", active = eqOn) { onOpenEq() }
+                    TvButton(Icons.Rounded.PowerSettingsNew, "Pantalla apagada") { onScreenOff() }
                     if (mode != 0) {
                         TvButton(Icons.Rounded.Fullscreen, "Pantalla completa") { if (mode == 1) onFullLyrics() else onVideoFull() }
                     }

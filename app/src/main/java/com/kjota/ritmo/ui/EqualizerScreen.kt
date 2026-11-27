@@ -42,6 +42,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.border
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -74,8 +83,13 @@ fun EqualizerScreen(vm: MainViewModel, onClose: () -> Unit) {
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp),
         ) {
+            val closeFocus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(350)
+                try { closeFocus.requestFocus() } catch (_: Throwable) { }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) {
+                IconButton(onClick = onClose, modifier = Modifier.focusRequester(closeFocus)) {
                     Icon(Icons.Rounded.KeyboardArrowDown, "Cerrar", tint = Color.White, modifier = Modifier.size(32.dp))
                 }
                 Text(
@@ -238,10 +252,22 @@ private fun BandSlider(level: Int, minMb: Int, maxMb: Int, enabled: Boolean, onC
         if (kotlin.math.abs(v) < 60) v = 0     // imán en 0 dB
         return v.coerceIn(minMb, maxMb)
     }
+    var focused by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Box(
         Modifier
             .width(44.dp)
             .height(height)
+            .onFocusChanged { focused = it.isFocused }
+            .then(if (focused) Modifier.border(2.dp, Color.White, RoundedCornerShape(12.dp)) else Modifier)
+            .focusable(enabled)
+            .onKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) false
+                else when (e.key) {
+                    Key.DirectionUp -> { onChange((level + 100).coerceIn(minMb, maxMb)); true }
+                    Key.DirectionDown -> { onChange((level - 100).coerceIn(minMb, maxMb)); true }
+                    else -> false
+                }
+            }
             .pointerInput(minMb, maxMb) {
                 detectTapGestures { o -> onChange(toLevel(o.y, size.height.toFloat())) }
             }
