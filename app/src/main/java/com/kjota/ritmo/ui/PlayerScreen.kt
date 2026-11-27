@@ -406,7 +406,7 @@ fun PlayerScreen(
             }
         }
         if (qFrac.value > 0.001f) QueuePanel(vm, qFrac, rootH, onPickPlaylist)
-        if (showArtist) ArtistSheet(vm, t.artist) { showArtist = false }
+        if (showArtist) ArtistSheet(vm, t.mainArtist) { showArtist = false }
     }
 }
 

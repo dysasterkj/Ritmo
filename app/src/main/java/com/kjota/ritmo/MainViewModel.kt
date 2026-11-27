@@ -438,7 +438,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val ok = sh.tracks.filter { !Taste.isBlocked(it) }
             if (ok.isEmpty()) null else sh.copy(tracks = ok)
         }
-        _undo.tryEmit(UndoEvent("Listo, no te sugeriremos más a ${t.artist}") {
+        _undo.tryEmit(UndoEvent("Listo, no te sugeriremos más a ${t.mainArtist}") {
             Taste.restore(token)
             if (wasLiked && !Library.isLiked(t.id)) Library.toggleLike(t)
             if (_shelves.value.size <= prevShelves.size) _shelves.value = prevShelves
@@ -515,19 +515,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 for (i in 0 until upTo) {
                     val tr = cc.getMediaItemAt(i).toTrack()
                     have.add(tr.id); titles.add(titleKey(tr.title))
-                    perArtist.merge(tr.artist.lowercase().trim(), 1, Int::plus)
+                    perArtist.merge(tr.mainArtist.lowercase().trim(), 1, Int::plus)
                 }
                 val mode = _qMode.value
                 val lib = Library.state.value
                 val libAll = (lib.liked + lib.recent + lib.downloads)
-                val known = libAll.map { it.artist.lowercase().trim() }.toSet()
-                fun isKnown(t: Track) = t.artist.lowercase().trim() in known
+                val known = libAll.map { it.mainArtist.lowercase().trim() }.toSet()
+                fun isKnown(t: Track) = t.mainArtist.lowercase().trim() in known
                 fun clean(list: List<Track>): List<Track> = list
                     .filter { !Taste.isBlocked(it, seedTitle) }
                     .filter { have.add(it.id) }
                     .filter { titles.add(titleKey(it.title)) }
                     .filter {
-                        val k = it.artist.lowercase().trim()
+                        val k = it.mainArtist.lowercase().trim()
                         val n = perArtist.getOrDefault(k, 0)
                         perArtist[k] = n + 1
                         n < 2

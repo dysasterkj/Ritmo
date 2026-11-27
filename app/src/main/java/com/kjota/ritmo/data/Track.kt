@@ -10,6 +10,9 @@ data class Track(
     val artist: String,
     val durationSec: Int,
 ) {
+    /** Artista principal: "PEDRO SAMPAIO and 2 more" / "A, B" / "A feat. B" → "PEDRO SAMPAIO" / "A". */
+    val mainArtist: String get() = mainArtistOf(artist)
+
     /** Miniatura 16:9 sin franjas negras (para listas). */
     val thumb: String get() = "https://i.ytimg.com/vi/$id/mqdefault.jpg"
 
@@ -40,4 +43,10 @@ fun JSONArray?.toTracks(): List<Track> {
         try { out.add(Track.fromJson(getJSONObject(i))) } catch (_: Exception) { }
     }
     return out
+}
+
+fun mainArtistOf(artist: String): String {
+    var a = artist.replace(Regex("\\s+and\\s+\\d+\\s+more.*$", RegexOption.IGNORE_CASE), "")
+    a = a.split(Regex("\\s*,\\s*|\\s+(?:feat\\.?|ft\\.?|featuring|con|with)\\s+", RegexOption.IGNORE_CASE)).first()
+    return a.trim().ifEmpty { artist.trim() }
 }

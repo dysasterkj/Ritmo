@@ -71,7 +71,7 @@ object Taste {
     @Synchronized
     fun dislike(t: Track): Undo {
         val addedId = ids.add(t.id)
-        val a = norm(t.artist)
+        val a = norm(t.mainArtist)
         val addedArtist = a.length >= 3 && artists.add(a)
         _count.value = ids.size
         _rev.value++
@@ -112,7 +112,7 @@ object Taste {
     @Synchronized
     fun isBlocked(t: Track, seedTitle: String = ""): Boolean {
         if (t.id in ids) return true
-        val a = norm(t.artist)
+        val a = norm(t.mainArtist)
         if (a in artists) return true
         val text = norm(t.title + " " + t.artist)
         if (words.any { text.contains(it) }) return true

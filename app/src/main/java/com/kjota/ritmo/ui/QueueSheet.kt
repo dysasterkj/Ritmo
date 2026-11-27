@@ -94,7 +94,7 @@ fun QueuePanel(
     val filter by vm.qMode.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val known = remember(lib) {
-        (lib.liked + lib.recent + lib.downloads).map { it.artist.lowercase().trim() }.toSet()
+        (lib.liked + lib.recent + lib.downloads).map { it.mainArtist.lowercase().trim() }.toSet()
     }
     val cur = q.items.getOrNull(q.index)
     val rows = q.items.withIndex().toList()
@@ -352,7 +352,7 @@ fun TrackActionsSheet(
             Item(Icons.Rounded.Favorite, if (liked) "Quitar de favoritas" else "Guardar en favoritas") { vm.toggleLike(t) }
             if (downloaded) Item(Icons.Rounded.Delete, "Eliminar descarga") { vm.removeDownload(t) }
             else if (prog[t.id] == null) Item(Icons.Rounded.Download, "Descargar") { vm.download(t) }
-            Item(Icons.Rounded.Person, "Ir al artista") { onArtist(t.artist) }
+            Item(Icons.Rounded.Person, "Ir al artista") { onArtist(t.mainArtist) }
             if (!isCur) Item(Icons.Rounded.Close, "Quitar de la fila") { vm.removeFromQueue(index) }
             Item(Icons.Rounded.Block, "No recomendar este artista") { vm.dislike(t) }
             Spacer(Modifier.height(12.dp))
@@ -370,7 +370,7 @@ fun ArtistSheet(vm: MainViewModel, artist: String, onDismiss: () -> Unit) {
         val key = artist.lowercase().trim()
         list = try {
             com.kjota.ritmo.engine.YouTube.search(artist, 30)
-                .filter { it.artist.lowercase().contains(key.take(12)) || key.contains(it.artist.lowercase().trim().take(12)) }
+                .filter { it.artist.lowercase().contains(key.take(12)) || key.contains(it.mainArtist.lowercase().trim().take(12)) }
                 .ifEmpty { com.kjota.ritmo.engine.YouTube.search(artist, 30) }
         } catch (_: Throwable) { emptyList() }
     }
