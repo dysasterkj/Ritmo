@@ -405,7 +405,7 @@ fun PlayerScreen(
                 Text("A continuación", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
         }
-        if (qFrac.value > 0.001f) QueuePanel(vm, qFrac, rootH)
+        if (qFrac.value > 0.001f) QueuePanel(vm, qFrac, rootH, onPickPlaylist)
         if (showArtist) ArtistSheet(vm, t.artist) { showArtist = false }
     }
 }

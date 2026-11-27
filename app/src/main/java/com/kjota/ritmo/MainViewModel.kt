@@ -352,13 +352,42 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** Cambia el tipo de sugerencias: reemplaza lo que viene por canciones conocidas o por descubrir. */
     fun setQueueMode(mode: Int) {
-        _qMode.value = mode
+        val old = _qMode.value
+        if (mode == old) return
         val c = controller ?: return
         val cur = c.currentMediaItemIndex
-        if (cur + 1 < c.mediaItemCount) c.removeMediaItems(cur + 1, c.mediaItemCount)
+        // Lo que había en la pestaña anterior se guarda para volver a ella al instante.
+        if (cur + 1 < c.mediaItemCount) {
+            modeCache[old] = (cur + 1 until c.mediaItemCount).map { c.getMediaItemAt(it).toTrack() }
+        }
+        _qMode.value = mode
         radioEnabled = true
-        radioFor = null
-        maybeExtendWithRadio()
+        val cached = modeCache[mode]?.filter { !Taste.isBlocked(it, radioSeedTitle) && it.id != c.currentMediaItem?.mediaId }
+        if (!cached.isNullOrEmpty()) {
+            c.replaceMediaItems(cur + 1, c.mediaItemCount, cached.map { it.toMediaItem() })
+            publishQueue(c)
+            radioFor = null
+            maybeExtendWithRadio()
+        } else {
+            _qLoading.value = true
+            maybeExtendWithRadio(replace = true)
+        }
+    }
+
+    fun moveInQueue(from: Int, to: Int) {
+        val c = controller ?: return
+        val n = c.mediaItemCount
+        if (from == to || from !in 0 until n || to !in 0 until n) return
+        c.moveMediaItem(from, to)
+        publishQueue(c)
+    }
+
+    /** "Reproducir a continuación" sobre una canción de la cola: sube y pasa a ser la siguiente. */
+    fun queueToNext(index: Int) {
+        val c = controller ?: return
+        val cur = c.currentMediaItemIndex
+        if (index == cur || index !in 0 until c.mediaItemCount) return
+        c.moveMediaItem(index, if (index > cur) cur + 1 else cur)
         publishQueue(c)
     }
 
@@ -445,6 +474,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         if (tracks.isEmpty()) return
         radioEnabled = radio
         radioFor = null
+        modeCache.clear()
+        _qMode.value = 0
         radioSeedTitle = context.ifEmpty { tracks[index.coerceIn(0, tracks.lastIndex)].title }
         c.shuffleModeEnabled = shuffle
         c.setMediaItems(tracks.map { it.toMediaItem() }, index.coerceIn(0, tracks.lastIndex), 0L)
@@ -461,14 +492,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private fun titleKey(t: String): String =
         t.lowercase().replace(Regex("[\\(\\[].*?[\\)\\]]"), "").replace(Regex("[^\\p{L}\\p{N}]"), "")
 
-    private fun maybeExtendWithRadio() {
+    private fun maybeExtendWithRadio(replace: Boolean = false) {
         val c = controller ?: return
         if (!radioEnabled) return
         val remaining = c.mediaItemCount - 1 - c.currentMediaItemIndex
-        if (remaining >= 15 || c.mediaItemCount == 0) return
-        val seed = c.getMediaItemAt(c.mediaItemCount - 1).toTrack()
-        if (radioFor == seed.id) return
+        if (c.mediaItemCount == 0) return
+        if (!replace && remaining >= 15) return
+        // Al cambiar de pestaña (replace) se parte de la canción que suena y se reemplaza lo que viene en un solo paso.
+        val seed = c.getMediaItemAt(if (replace) c.currentMediaItemIndex else c.mediaItemCount - 1).toTrack()
+        if (!replace && radioFor == seed.id) return
         radioFor = seed.id
+        val replaceFrom = if (replace) c.currentMediaItemIndex + 1 else -1
         val seedTitle = radioSeedTitle.ifEmpty { seed.title }
         viewModelScope.launch {
             try {
@@ -477,7 +511,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 val have = HashSet<String>()
                 val titles = HashSet<String>()
                 val perArtist = HashMap<String, Int>()
-                for (i in 0 until cc.mediaItemCount) {
+                val upTo = if (replaceFrom >= 0) minOf(replaceFrom, cc.mediaItemCount) else cc.mediaItemCount
+                for (i in 0 until upTo) {
                     val tr = cc.getMediaItemAt(i).toTrack()
                     have.add(tr.id); titles.add(titleKey(tr.title))
                     perArtist.merge(tr.artist.lowercase().trim(), 1, Int::plus)
@@ -512,7 +547,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     fresh = fresh + clean(ex)
                 }
                 fresh = fresh.take(25)
-                if (fresh.isNotEmpty()) cc.addMediaItems(fresh.map { it.toMediaItem() })
+                if (fresh.isNotEmpty()) {
+                    if (replaceFrom >= 0) {
+                        modeCache[mode] = fresh
+                        cc.replaceMediaItems(minOf(replaceFrom, cc.mediaItemCount), cc.mediaItemCount, fresh.map { it.toMediaItem() })
+                    } else cc.addMediaItems(fresh.map { it.toMediaItem() })
+                }
+                _qLoading.value = false
                 if (skipWhenReady && cc.hasNextMediaItem()) {
                     skipWhenReady = false
                     cc.seekToNextMediaItem()
@@ -526,10 +567,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             } catch (_: Throwable) {
                 radioFor = null
                 radioChain = 0
+                _qLoading.value = false
             }
         }
     }
     private var radioChain = 0
+    private val modeCache = HashMap<Int, List<Track>>()
+    private val _qLoading = MutableStateFlow(false)
+    val qLoading: StateFlow<Boolean> = _qLoading.asStateFlow()
 
     private fun prefetchNext() {
         val c = controller ?: return
