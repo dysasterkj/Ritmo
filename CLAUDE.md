@@ -67,3 +67,6 @@ Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión
 - Mix DJ: `engine/Bpm.kt` (BPM vía Deezer) + `mixRatio` en PlaybackService (±10 % con setPlaybackSpeed); pref `mix_beat`. Es aproximado, no alinea el compás.
 - Widget "Buscar": extra `open_search` → `vm.openSearch` → RitmoRoot abre la pestaña Búsqueda.
 - Letras: LRCLIB `/api/get` → `/api/search` → respaldo lyrics.ovh (sin tiempos).
+
+## Instalar en el TV
+Enlace corto (apunta a la última versión): https://is.gd/ritmo2 → https://github.com/dysasterkj/Ritmo/releases/latest/download/Ritmo.apk (se usa en la app Downloader del TV).
