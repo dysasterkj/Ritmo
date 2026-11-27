@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
@@ -73,9 +75,17 @@ fun SystemUi(hideBars: Boolean, landscape: Boolean) {
 /** Como clickable, pero con un borde blanco visible cuando se navega con el control remoto (TV). */
 fun Modifier.tvClickable(shape: Shape = RoundedCornerShape(16.dp), onClick: () -> Unit): Modifier = composed {
     var focused by remember { mutableStateOf(false) }
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (focused) 1.08f else 1f, label = "tvFocusScale")
     this
         .onFocusChanged { focused = it.isFocused }
-        .then(if (focused) Modifier.border(2.5.dp, Color.White, shape) else Modifier)
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .then(
+            if (focused) Modifier
+                .background(Color.White.copy(alpha = 0.22f), shape)
+                .border(4.dp, Color(0xFF3DDC84), shape)
+                .border(2.dp, Color.White, shape)
+            else Modifier
+        )
         .clickable(onClick = onClick)
 }
 
