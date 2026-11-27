@@ -119,7 +119,7 @@ fun SettingsScreen(vm: MainViewModel, onOpenEq: () -> Unit) {
             }
         }
 
-        SettingsCard("Mix DJ", "Las canciones se mezclan solas, sin cortes.") {
+        if (!isTv(androidx.compose.ui.platform.LocalContext.current)) SettingsCard("Mix DJ", "Las canciones se mezclan solas, sin cortes.") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Activar Mix DJ", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Switch(checked = mixOn, onCheckedChange = { vm.setMix(it) }, colors = switchColors())

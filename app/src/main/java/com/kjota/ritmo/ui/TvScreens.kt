@@ -629,7 +629,6 @@ private fun TvPlayer(
                         if (now.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                         "Repetir", active = now.repeatMode != Player.REPEAT_MODE_OFF,
                     ) { vm.cycleRepeat() }
-                    TvButton(Icons.Rounded.GraphicEq, "Mix DJ", active = mixOn) { vm.setMix(!mixOn) }
                     TvButton(Icons.Rounded.PowerSettingsNew, "Pantalla apagada") { onScreenOff() }
                     if (mode != 0) {
                         TvButton(Icons.Rounded.Fullscreen, "Pantalla completa") { if (mode == 1) onFullLyrics() else onVideoFull() }

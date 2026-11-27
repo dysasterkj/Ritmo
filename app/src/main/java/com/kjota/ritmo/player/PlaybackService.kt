@@ -173,7 +173,7 @@ class PlaybackService : MediaSessionService() {
 
     private var tailStallSince = 0L
 
-    private fun mixEnabled() = Prefs.getLong(this, "mix_on", 0L) == 1L
+    private fun mixEnabled() = !com.kjota.ritmo.ui.isTv(this) && Prefs.getLong(this, "mix_on", 0L) == 1L
 
     private fun clearPreroll() {
         if (prerollId == null || inMix) return
