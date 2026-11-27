@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -581,17 +582,15 @@ private fun TvPlayer(
             }
 
             // Derecha: info y controles
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.Top,
+            ) {
                 val vh by vm.videoHeight.collectAsStateWithLifecycle()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Calidad", color = Pal.Dim, fontSize = 14.sp)
-                    listOf(360, 480, 720, 1080).forEach { h -> TvChip("${h}p", vh == h) { vm.setVideoHeight(h) } }
-                }
-                Spacer(Modifier.height(28.dp))
-                Text(t.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, lineHeight = 34.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(t.artist, color = Pal.Dim, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(24.dp))
+                Text(t.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, lineHeight = 26.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Text(t.artist, color = Pal.Dim, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(10.dp))
                 LinearProgressIndicator(
                     progress = { (pos.toFloat() / dur).coerceIn(0f, 1f) },
                     modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
@@ -601,8 +600,8 @@ private fun TvPlayer(
                     Text(formatTime((pos / 1000).toInt()), color = Pal.Dim, fontSize = 13.sp, modifier = Modifier.weight(1f))
                     Text(formatTime((dur / 1000).toInt()), color = Pal.Dim, fontSize = 13.sp)
                 }
-                Spacer(Modifier.height(18.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(Icons.Rounded.SkipPrevious, "Anterior") { vm.previous() }
                     TvButton(Icons.Rounded.Replay10, "Retroceder 10 s") { if (vOn) video!!.seekBy(-10_000) else vm.seekTo((now.positionMs - 10_000).coerceAtLeast(0L)) }
                     TvButton(
@@ -612,14 +611,18 @@ private fun TvPlayer(
                     TvButton(Icons.Rounded.Forward10, "Adelantar 10 s") { if (vOn) video!!.seekBy(10_000) else vm.seekTo(now.positionMs + 10_000) }
                     TvButton(Icons.Rounded.SkipNext, "Siguiente") { vm.next() }
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     TvButton(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Favorita", active = liked) { vm.toggleLike(t) }
                     TvButton(Icons.Rounded.PlaylistAdd, "Guardar en playlist") { onPickPlaylist(t) }
                     TvButton(Icons.Rounded.Shuffle, "Aleatorio", active = now.shuffle) { vm.toggleShuffle() }
                 }
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TvChip("${vh}p") {
+                        val l = listOf(360, 480, 720, 1080)
+                        vm.setVideoHeight(l[(l.indexOf(vh) + 1).mod(l.size)])
+                    }
                     TvButton(
                         if (now.repeatMode == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                         "Repetir", active = now.repeatMode != Player.REPEAT_MODE_OFF,
