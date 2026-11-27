@@ -244,6 +244,10 @@ object YouTube {
         val key = "$id@$maxHeight"
         val c = videoCache[key]
         if (c != null && System.currentTimeMillis() - c.at < 2L * 60 * 60 * 1000) return@withContext c.video to c.audio
+        InnerTube.videoUrls(id, maxHeight)?.let { (v, a) ->
+            videoCache[key] = CachedVideo(v, a, System.currentTimeMillis())
+            return@withContext v to a
+        }
         Engine.awaitReady()
         val h = maxHeight
         val req = YoutubeDLRequest("$WATCH$id")

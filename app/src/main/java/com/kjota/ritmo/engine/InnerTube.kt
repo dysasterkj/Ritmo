@@ -43,7 +43,7 @@ object InnerTube {
         return r.first
     }
 
-    private fun resolve(id: String): Pair<String?, String> {
+    private fun player(id: String): Pair<JSONObject?, String> {
         return try {
             val body = JSONObject()
                 .put(
@@ -77,9 +77,18 @@ object InnerTube {
             c.outputStream.use { it.write(body.toByteArray()) }
             if (c.responseCode != 200) return null to "HTTP ${c.responseCode}"
             val json = JSONObject(c.inputStream.bufferedReader().use { it.readText() })
-
             val ps = json.optJSONObject("playabilityStatus")?.optString("status")
             if (ps != "OK") return null to "estado $ps"
+            json to "ok"
+        } catch (e: Throwable) {
+            null to (e.javaClass.simpleName)
+        }
+    }
+
+    private fun resolve(id: String): Pair<String?, String> {
+        return try {
+            val (json, why) = player(id)
+            if (json == null) return null to why
             val formats = json.optJSONObject("streamingData")?.optJSONArray("adaptiveFormats") ?: return null to "sin formatos"
 
             var best: JSONObject? = null
@@ -98,6 +107,33 @@ object InnerTube {
         } catch (e: Throwable) {
             null to (e.javaClass.simpleName)
         }
+    }
+
+    /** Video (H.264) + audio (AAC) directos, sin Python: mucho más rápido en el TV. null si no se puede. */
+    fun videoUrls(id: String, maxHeight: Int): Pair<String, String?>? {
+        if (System.currentTimeMillis() < pausedUntil) return null
+        return try {
+            val json = player(id).first ?: return null
+            val formats = json.optJSONObject("streamingData")?.optJSONArray("adaptiveFormats") ?: return null
+            var bestV: JSONObject? = null
+            var bestA: JSONObject? = null
+            for (i in 0 until formats.length()) {
+                val f = formats.getJSONObject(i)
+                val mime = f.optString("mimeType")
+                if (f.optString("url").isEmpty()) continue
+                if (mime.startsWith("video/mp4") && mime.contains("avc1")) {
+                    val h = f.optInt("height")
+                    if (h in 1..maxHeight && (bestV == null || h > bestV.optInt("height") ||
+                            (h == bestV.optInt("height") && f.optLong("bitrate") > bestV.optLong("bitrate")))) bestV = f
+                } else if (mime.startsWith("audio/mp4") && mime.contains("mp4a")) {
+                    if (bestA == null || f.optLong("bitrate") > bestA.optLong("bitrate")) bestA = f
+                }
+            }
+            val v = bestV?.optString("url")?.takeIf { it.startsWith("http") } ?: return null
+            val a = bestA?.optString("url")?.takeIf { it.startsWith("http") }
+            if (!reachable(v)) return null
+            v to a
+        } catch (_: Throwable) { null }
     }
 
     /** Comprueba con una petición mínima que el reproductor podrá abrir esa dirección. */

@@ -114,7 +114,7 @@ fun TvRoot(vm: MainViewModel) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var collection by rememberSaveable { mutableStateOf<String?>(null) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
-    var playerMode by rememberSaveable { mutableIntStateOf(0) }
+    var playerMode by rememberSaveable { mutableIntStateOf(2) }
     var videoFull by rememberSaveable { mutableStateOf(false) }
     var lyricsFull by rememberSaveable { mutableStateOf(false) }
     var eqOpen by remember { mutableStateOf(false) }
@@ -126,9 +126,8 @@ fun TvRoot(vm: MainViewModel) {
     LaunchedEffect(Unit) { vm.openVideo.collect { playerMode = 2; playerOpen = true } }
     LaunchedEffect(Unit) { vm.userPlay.collect { playerMode = 2; playerOpen = true } }
     LaunchedEffect(Unit) { Updater.checkAsync(ctx, manual = false) }
-    LaunchedEffect(playerOpen) { if (!playerOpen && !videoFull) playerMode = 0 }
 
-    val videoActive = (playerOpen && playerMode == 2) || videoFull
+    val videoActive = ((playerOpen && playerMode == 2) || videoFull) && !screenOff
     val video = if (videoActive) rememberVideoState(vm) else null
 
     BackHandler(enabled = !profileChosen) { profileChosen = true }
@@ -172,7 +171,7 @@ fun TvRoot(vm: MainViewModel) {
             TvPlayer(
                 vm, playerMode, { playerMode = it }, video,
                 onClose = { playerOpen = false },
-                onScreenOff = { playerMode = 0; screenOff = true },
+                onScreenOff = { screenOff = true },
                 onPickPlaylist = { pick = it },
                 onFullLyrics = { lyricsFull = true },
                 onVideoFull = { videoFull = true },
@@ -571,7 +570,9 @@ private fun TvPlayer(
                 when (mode) {
                     1 -> LyricsPanel(vm, t, now.positionMs, Modifier.fillMaxSize(), big = true)
                     2 -> if (video != null) {
-                        VideoInline(vm, video, onFullscreen = onVideoFull, overlayControls = false)
+                        Box(Modifier.tvClickable(RoundedCornerShape(22.dp)) { onVideoFull() }) {
+                            VideoInline(vm, video, onFullscreen = onVideoFull, overlayControls = false)
+                        }
                     } else {
                         CircularProgressIndicator(color = Pal.Green, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
                     }
@@ -581,7 +582,11 @@ private fun TvPlayer(
 
             // Derecha: info y controles
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                ModeToggle(mode, onMode)
+                val vh by vm.videoHeight.collectAsStateWithLifecycle()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Calidad", color = Pal.Dim, fontSize = 14.sp)
+                    listOf(360, 480, 720, 1080).forEach { h -> TvChip("${h}p", vh == h) { vm.setVideoHeight(h) } }
+                }
                 Spacer(Modifier.height(28.dp))
                 Text(t.title, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 30.sp, lineHeight = 34.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
