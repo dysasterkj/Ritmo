@@ -6,6 +6,7 @@ import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -278,7 +278,7 @@ fun CollectionScreen(
                     Text(t.title, color = Color.White, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Box(
                         Modifier.size(48.dp).pointerInput(t.id) {
-                            androidx.compose.foundation.gestures.detectDragGestures(
+                            detectDragGestures(
                                 onDragStart = { dragKey = t.id; dragOff = 0f },
                                 onDragEnd = { dragKey = null; dragOff = 0f },
                                 onDragCancel = { dragKey = null; dragOff = 0f },
