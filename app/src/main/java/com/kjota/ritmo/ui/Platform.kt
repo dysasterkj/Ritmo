@@ -81,8 +81,8 @@ fun Modifier.tvClickable(shape: Shape = RoundedCornerShape(16.dp), onClick: () -
         .graphicsLayer { scaleX = scale; scaleY = scale }
         .then(
             if (focused) Modifier
-                .background(Color.White.copy(alpha = 0.22f), shape)
-                .border(4.dp, Color(0xFF3DDC84), shape)
+                .background(Color(0xFF2979FF).copy(alpha = 0.30f), shape)
+                .border(4.dp, Color(0xFF2979FF), shape)
                 .border(2.dp, Color.White, shape)
             else Modifier
         )

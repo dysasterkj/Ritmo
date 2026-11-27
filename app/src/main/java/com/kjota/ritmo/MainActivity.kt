@@ -46,6 +46,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** En TV, al salir a otra app (Netflix, etc.) la música se pausa para no interferir. */
+    override fun onStop() {
+        super.onStop()
+        if (isTv(this) && !isChangingConfigurations) vm.pauseAudio()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

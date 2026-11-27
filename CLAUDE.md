@@ -72,6 +72,6 @@ Cola visible, temporizador de apagado, caché de portada de Inicio sin conexión
 Enlace corto (apunta a la última versión): https://is.gd/ritmo2 → https://github.com/dysasterkj/Ritmo/releases/latest/download/Ritmo.apk (se usa en la app Downloader del TV).
 
 ## TV y perfiles (nov 2026)
-- TV: al dar play (`vm.userPlay`) abre el reproductor en modo video; "A continuación" (cola) abajo; botón "Pantalla apagada" (overlay negro, cualquier tecla lo quita); sin ecualizador en TV. Con overlays abiertos el fondo usa `focusProperties { canFocus = false }`. `tvClickable` = foco con escala, relleno y borde verde+blanco. Video en TV parte en 720p.
+- TV: al salir de la app (onStop) se pausa el audio; foco azul (#2979FF). Al dar play (`vm.userPlay`) abre el reproductor en modo video; "A continuación" (cola) abajo; botón "Pantalla apagada" (overlay negro, cualquier tecla lo quita); sin ecualizador en TV. Con overlays abiertos el fondo usa `focusProperties { canFocus = false }`. `tvClickable` = foco con escala, relleno y borde verde+blanco. Video en TV parte en 720p.
 - Perfiles locales: `data/Profiles.kt` (lista en SharedPreferences "ritmo_profiles"; p0 usa las carpetas de siempre, los demás `filesDir/profiles/<id>`). Cada perfil: library.json, taste.json, last_session.json, home_cache.json. Cambiar de perfil reinicia la app. En TV, selector "¿Quién escucha?" al abrir si hay más de uno. Ajustes → Perfiles.
 - Pendiente: transmitir a Chromecast/Google TV (Google Cast: media3-cast + play-services-cast-framework).
