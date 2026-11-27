@@ -48,6 +48,8 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -95,6 +97,7 @@ private val railItems: List<Pair<ImageVector, String>> = listOf(
     Icons.Rounded.Search to "Buscar",
     Icons.Rounded.LibraryMusic to "Biblioteca",
     Icons.Rounded.Settings to "Ajustes",
+    Icons.Rounded.Person to "Perfil",
 )
 
 /**
@@ -126,6 +129,7 @@ fun TvRoot(vm: MainViewModel) {
     val videoActive = (playerOpen && playerMode == 2) || videoFull
     val video = if (videoActive) rememberVideoState(vm) else null
 
+    BackHandler(enabled = !profileChosen) { profileChosen = true }
     BackHandler(enabled = screenOff) { screenOff = false }
     BackHandler(enabled = videoFull || lyricsFull || eqOpen || playerOpen || collection != null || tab != 0) {
         when {
@@ -140,8 +144,8 @@ fun TvRoot(vm: MainViewModel) {
 
     val overlay = playerOpen || eqOpen || lyricsFull || videoFull || screenOff || !profileChosen
     AuroraBackground {
-        Row(Modifier.fillMaxSize().focusProperties { canFocus = !overlay }) {
-            TvRail(tab) { tab = it; collection = null }
+        Row(Modifier.fillMaxSize().then(if (overlay) Modifier.focusProperties { canFocus = false } else Modifier)) {
+            TvRail(tab) { if (it == 4) profileChosen = false else { tab = it; collection = null } }
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val open = collection
                 Box(Modifier.fillMaxSize().padding(end = 24.dp)) {
@@ -217,6 +221,20 @@ private fun TvProfilePicker(onPick: (String) -> Unit) {
                     Spacer(Modifier.height(10.dp))
                     Text(p.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                 }
+            }
+            Column(
+                Modifier.clip(RoundedCornerShape(18.dp))
+                    .tvClickable(RoundedCornerShape(18.dp)) {
+                        val np = com.kjota.ritmo.data.Profiles.add(ctx, "Perfil ${list.size + 1}")
+                        onPick(np.id)
+                    }.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(Modifier.size(96.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.Add, "Nuevo perfil", tint = Color.White, modifier = Modifier.size(44.dp))
+                }
+                Spacer(Modifier.height(10.dp))
+                Text("Nuevo", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
