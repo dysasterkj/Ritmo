@@ -124,8 +124,8 @@ fun TvRoot(vm: MainViewModel) {
     var pick by remember { mutableStateOf<Track?>(null) }
     var importOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { vm.openVideo.collect { playerMode = 2; playerOpen = true } }
-    LaunchedEffect(Unit) { vm.userPlay.collect { playerMode = 2; playerOpen = true } }
+    LaunchedEffect(Unit) { vm.openVideo.collect { videoFull = true } }
+    LaunchedEffect(Unit) { vm.userPlay.collect { videoFull = true } }
     LaunchedEffect(Unit) { Updater.checkAsync(ctx, manual = false) }
 
     val videoActive = ((playerOpen && playerMode == 2) || videoFull) && !screenOff
@@ -161,8 +161,7 @@ fun TvRoot(vm: MainViewModel) {
                 }
                 now.track?.let { t ->
                     TvNowBar(vm, t, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 16.dp)) {
-                        playerMode = 2
-                        playerOpen = true
+                        videoFull = true
                     }
                 }
             }
@@ -180,7 +179,11 @@ fun TvRoot(vm: MainViewModel) {
         }
         AnimatedVisibility(visible = eqOpen) { EqualizerScreen(vm, onClose = { eqOpen = false }) }
         if (lyricsFull) LyricsFullScreen(vm, onClose = { lyricsFull = false })
-        if (videoFull && video != null) VideoFullScreen(vm, video, onClose = { videoFull = false })
+        if (videoFull && video != null) VideoFullScreen(
+            vm, video, onClose = { videoFull = false },
+            onPickPlaylist = { pick = it },
+            onScreenOff = { videoFull = false; screenOff = true },
+        )
         if (screenOff) ScreenOffOverlay { screenOff = false }
         if (!profileChosen) TvProfilePicker { id ->
             if (id == com.kjota.ritmo.data.Profiles.currentId(ctx)) profileChosen = true
@@ -366,7 +369,6 @@ private fun TvHome(
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)) {
                 item { TvChip("Favoritas") { onOpenCollection("liked") } }
-                item { TvChip("Descargadas") { onOpenCollection("downloads") } }
                 itemsIndexed(moodChips) { i, name -> TvChip(name, mood == i) { vm.setMood(i) } }
             }
         }

@@ -69,6 +69,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -326,7 +331,13 @@ fun VideoInline(vm: MainViewModel, v: VideoState, onFullscreen: () -> Unit, modi
  * Con el control remoto (TV): izquierda/derecha adelantan o retroceden 10 s, OK pausa y reanuda.
  */
 @Composable
-fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
+fun VideoFullScreen(
+    vm: MainViewModel,
+    v: VideoState,
+    onClose: () -> Unit,
+    onPickPlaylist: ((com.kjota.ritmo.data.Track) -> Unit)? = null,
+    onScreenOff: (() -> Unit)? = null,
+) {
     val now by vm.now.collectAsStateWithLifecycle()
     val height by vm.videoHeight.collectAsStateWithLifecycle()
     val track = now.track
@@ -469,7 +480,36 @@ fun VideoFullScreen(vm: MainViewModel, v: VideoState, onClose: () -> Unit) {
                             formatTime((shown / 1000).toInt()) + " / " + formatTime((v.dur / 1000).toInt()),
                             color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f),
                         )
+                        if (tv) {
+                            val lib by vm.lib.collectAsStateWithLifecycle()
+                            val liked = track != null && lib.liked.any { it.id == track.id }
+                            if (track != null) {
+                                FsBtn(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Favorita", 26.dp) { vm.toggleLike(track); touch++ }
+                                FsBtn(Icons.Rounded.PlaylistAdd, "Guardar en playlist", 26.dp) { onPickPlaylist?.invoke(track) }
+                            }
+                            FsBtn(Icons.Rounded.PowerSettingsNew, "Pantalla apagada", 26.dp) { onScreenOff?.invoke() }
+                        }
                         if (!tv) FsBtn(if (landscape) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen, "Girar pantalla", 30.dp) { landscape = !landscape; touch++ }
+                    }
+                    if (tv) {
+                        val q by vm.queue.collectAsStateWithLifecycle()
+                        val upNext = remember(q) { q.items.withIndex().drop(q.index + 1).take(25).toList() }
+                        Text("A continuación", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        if (upNext.isEmpty()) {
+                            Box(Modifier.fillMaxWidth().height(96.dp), contentAlignment = Alignment.CenterStart) {
+                                CircularProgressIndicator(color = Pal.Green, strokeWidth = 3.dp, modifier = Modifier.size(26.dp))
+                            }
+                        } else {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(upNext.size) { i ->
+                                    val (idx, tr) = upNext[i]
+                                    Column(Modifier.width(150.dp).tvClickable(RoundedCornerShape(10.dp)) { vm.playAt(idx) }.padding(2.dp)) {
+                                        Cover(tr.thumb, Modifier.fillMaxWidth().aspectRatio(16f / 9f), 8)
+                                        Text(tr.title, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
